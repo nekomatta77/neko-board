@@ -85,3 +85,111 @@
     color: #888;
     font-style: italic;
 }
+/* --- КРАСИВОЕ МЕНЮ ВЫБОРА --- */
+.game-selector {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.games-grid-menu {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Две колонки */
+    gap: 15px;
+    width: 100%;
+}
+
+.game-card-btn {
+    background: #2c2c2c;
+    border: 2px solid #333;
+    border-radius: 12px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    height: 120px;
+}
+
+.game-card-btn:active {
+    transform: scale(0.95);
+    background: #383838;
+}
+
+.game-card-btn.tictac { border-color: #bb86fc; }
+.game-card-btn.durak { border-color: #555; }
+
+.game-icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 10px;
+}
+
+.game-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.tictac .game-icon { color: #bb86fc; }
+.durak .game-icon { color: #777; }
+
+.game-card-btn span {
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.game-card-btn.disabled {
+    opacity: 0.5;
+    filter: grayscale(1);
+    cursor: not-allowed;
+}
+
+/* --- FULLSCREEN OVERLAY (ANDROID) --- */
+#fullscreen-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #121212;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+}
+
+.fullscreen-header {
+    height: 60px;
+    background-color: #1e1e1e;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 15px;
+    border-bottom: 2px solid #333;
+}
+
+#active-game-title {
+    font-size: 18px;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: #bb86fc;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: white;
+    padding: 10px;
+}
+
+#fullscreen-game-mount {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    overflow: hidden;
+}

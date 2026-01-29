@@ -1,6 +1,6 @@
 #tictac-game {
     width: 100%;
-    max-width: 300px;
+    max-width: 320px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -15,15 +15,23 @@
     border-bottom: 2px solid #bb86fc;
 }
 
-.status-bar.win { color: #03dac6; }
-.status-bar.lose { color: #cf6679; }
+.status-bar.win { color: #03dac6; border-color: #03dac6; }
+.status-bar.lose { color: #cf6679; border-color: #cf6679; }
+
+/* Контейнер для наложения SVG поверх сетки */
+.game-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+}
 
 .grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr); /* Фиксируем и строки */
     gap: 10px;
     width: 100%;
-    aspect-ratio: 1 / 1;
+    height: 100%;
 }
 
 .cell {
@@ -34,12 +42,20 @@
     align-items: center;
     font-size: 40px;
     font-weight: bold;
-    cursor: pointer;
+    cursor: default;
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     user-select: none;
+    /* Важно для предотвращения "ломания" */
+    overflow: hidden; 
+    line-height: 1;
 }
 
-.cell:active {
+/* Курсор "рука" только если игра идет и клетка пуста */
+.cell:not(.X):not(.O) {
+    cursor: pointer;
+}
+
+.cell:active:not(.X):not(.O) {
     background-color: #383838;
 }
 
@@ -47,12 +63,60 @@
 .cell.X { color: #bb86fc; text-shadow: 0 0 10px rgba(187, 134, 252, 0.5); }
 .cell.O { color: #03dac6; text-shadow: 0 0 10px rgba(3, 218, 198, 0.5); }
 
+/* SVG Линия */
+.win-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Чтобы клики проходили сквозь линию */
+    z-index: 10;
+}
+
+#win-line {
+    stroke: #ffffff;
+    stroke-width: 6;
+    stroke-linecap: round;
+    /* Анимация отрисовки */
+    stroke-dasharray: 300; /* Длина линии примерная */
+    stroke-dashoffset: 300;
+    animation: drawLine 0.5s forwards ease-out;
+    filter: drop-shadow(0 0 5px rgba(255,255,255,0.8));
+}
+
+@keyframes drawLine {
+    to { stroke-dashoffset: 0; }
+}
+
 #restart-btn {
     margin-top: 20px;
-    padding: 10px 20px;
+    padding: 12px 24px;
     background: #bb86fc;
     border: none;
     border-radius: 4px;
     font-weight: bold;
     text-transform: uppercase;
+}
+
+/* Стили для строки статуса с аватаром */
+.turn-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.status-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    margin-right: 8px;
+    border: 1px solid #fff;
+    vertical-align: middle;
+}
+
+.loading-text {
+    font-size: 14px;
+    color: #888;
+    font-style: italic;
 }

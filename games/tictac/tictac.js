@@ -1,145 +1,244 @@
-import { db, ref, update, onValue, off, set } from '../../../js/firebase-config.js';
+import { db, ref, update, onValue, off, set, get } from '../../js/firebase-config.js';
 
 let gameRef = null;
-let boardSubscription = null;
 let currentUserId = null;
-let isMyTurn = false;
-let mySymbol = null; // 'X' или 'O'
+let mySymbol = null; 
+let localBoard = Array(9).fill('');
+let isGameActive = true;
+let playersData = {};
 
-// Основная функция запуска
+let lastBoardStr = ""; 
+let isFirstLoad = true; 
+
+// Звук
+const notifySound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+
 export function initGame(container, roomId, userId, isHost) {
     currentUserId = userId;
-    mySymbol = isHost ? 'X' : 'O'; // Хост всегда Крестики
+    mySymbol = isHost ? 'X' : 'O'; 
+    isGameActive = true;
+    isFirstLoad = true; 
+    lastBoardStr = "";
     
     // 1. Рисуем разметку
     container.innerHTML = `
         <div id="tictac-game">
-            <div class="status-bar" id="game-status">Ожидание хода...</div>
-            <div class="grid">
-                ${Array(9).fill('').map((_, i) => `<div class="cell" data-index="${i}"></div>`).join('')}
+            <div class="status-bar" id="game-status">
+                <span class="loading-text">Загрузка...</span>
             </div>
-            ${isHost ? '<button id="restart-btn" class="hidden">Играть снова</button>' : ''}
+            
+            <div class="game-container">
+                <div class="grid">
+                    ${Array(9).fill('').map((_, i) => `<div class="cell" data-index="${i}"></div>`).join('')}
+                </div>
+                <svg class="win-overlay" viewBox="0 0 300 300">
+                    <line id="win-line" x1="0" y1="0" x2="0" y2="0" stroke-linecap="round" />
+                </svg>
+            </div>
+            
+            ${isHost ? '<button id="restart-btn" class="hidden">ИГРАТЬ СНОВА</button>' : ''}
         </div>
     `;
 
-    // 2. Ссылки на DOM
     const cells = container.querySelectorAll('.cell');
     const statusText = container.querySelector('#game-status');
     const restartBtn = container.querySelector('#restart-btn');
+    const winLine = container.querySelector('#win-line');
 
-    // 3. Подписка на данные игры в Firebase
     gameRef = ref(db, `rooms/${roomId}/gameData`);
-    
-    // Если мы хост и игры еще нет - инициализируем поле
+
     if (isHost) {
-        set(gameRef, {
-            board: Array(9).fill(''),
-            turn: 'X', // Первыми ходят крестики
-            winner: null
+        get(gameRef).then((snap) => {
+            if (!snap.exists()) resetGameData();
         });
     }
 
-    // Слушаем изменения поля
-    boardSubscription = onValue(gameRef, (snapshot) => {
+    get(ref(db, `rooms/${roomId}/players`)).then((playerSnap) => {
+        playersData = playerSnap.val() || {};
+        subscribeToGame(statusText, cells, restartBtn, winLine);
+    });
+
+    if (restartBtn) {
+        restartBtn.addEventListener('click', () => {
+            resetGameData();
+        });
+    }
+}
+
+function resetGameData() {
+    // При рестарте явно обнуляем линию
+    set(gameRef, {
+        board: Array(9).fill(''),
+        turn: 'X',
+        winner: null
+    });
+}
+
+function subscribeToGame(statusText, cells, restartBtn, winLine) {
+    onValue(gameRef, (snapshot) => {
         const data = snapshot.val();
         if (!data) return;
 
+        localBoard = data.board;
+        const currentBoardStr = JSON.stringify(localBoard);
+        const isMyTurn = data.turn === mySymbol;
+        
+        // Звук
+        if (currentBoardStr !== lastBoardStr && !isFirstLoad) {
+            if (isMyTurn && !data.winner) playSound();
+        }
+        
+        lastBoardStr = currentBoardStr;
+        isFirstLoad = false;
+
         // Обновляем клетки
-        data.board.forEach((val, i) => {
-            cells[i].textContent = val;
-            cells[i].className = `cell ${val}`; // Добавляем класс X или O для стилей
+        cells.forEach((cell, i) => {
+            cell.textContent = localBoard[i];
+            cell.className = 'cell';
+            if (localBoard[i] !== '') cell.classList.add(localBoard[i]);
         });
 
-        // Проверяем победителя
+        // Статусы
         if (data.winner) {
-            isMyTurn = false;
-            if (data.winner === 'draw') {
-                statusText.textContent = "Ничья! 🤝";
+            isGameActive = false;
+            
+            // ИСПРАВЛЕНИЕ БАГА С ЛИНИЕЙ:
+            // Мы вычисляем линию ЛОКАЛЬНО на основе текущей доски.
+            // Это гарантирует, что линия всегда совпадает с картинкой.
+            const winInfo = checkWinner(localBoard);
+            
+            if (data.winner === 'draw' || !winInfo) {
+                statusText.textContent = "Ничья";
+                statusText.className = "status-bar";
+                winLine.style.display = 'none';
             } else {
-                statusText.textContent = data.winner === mySymbol ? "Ты победил! 🎉" : "Ты проиграл 💀";
-                statusText.className = data.winner === mySymbol ? "status-bar win" : "status-bar lose";
+                // Рисуем линию на основе локального расчета
+                drawWinLine(winInfo.line, winLine);
+                
+                if (data.winner === mySymbol) {
+                    statusText.textContent = "Ты победил";
+                    statusText.className = "status-bar win";
+                    playSound(); 
+                } else {
+                    statusText.textContent = "Ты проиграл";
+                    statusText.className = "status-bar lose";
+                }
             }
-            if (restartBtn) restartBtn.classList.remove('hidden');
+            
+            if (restartBtn) {
+                restartBtn.classList.remove('hidden');
+                restartBtn.style.display = 'block'; 
+            }
+
         } else {
-            // Чей ход?
-            isMyTurn = data.turn === mySymbol;
-            statusText.textContent = isMyTurn ? `Твой ход (${mySymbol})` : `Ход противника...`;
-            statusText.className = "status-bar";
-            if (restartBtn) restartBtn.classList.add('hidden');
+            // Игра идет
+            isGameActive = true;
+            winLine.style.display = 'none'; // Прячем линию
+            
+            if (restartBtn) {
+                restartBtn.classList.add('hidden');
+                restartBtn.style.display = 'none';
+            }
+
+            if (isMyTurn) {
+                statusText.innerHTML = `Твой ход <span style="font-size:1.2em">(${mySymbol})</span>`;
+                statusText.className = "status-bar win"; 
+            } else {
+                const opponentSymbol = data.turn;
+                const isOpponentHost = (opponentSymbol === 'X');
+                const opponentEntry = Object.values(playersData).find(p => p.isHost === isOpponentHost);
+                
+                if (opponentEntry) {
+                    statusText.innerHTML = `
+                        <div class="turn-info">
+                            <span style="opacity:0.7; margin-right:5px">Ход игрока:</span>
+                            <img src="assets/avatars/ava${opponentEntry.avatar}.png" class="status-avatar">
+                            <span>${opponentEntry.name}</span>
+                        </div>
+                    `;
+                } else {
+                    statusText.textContent = `Ход противника (${opponentSymbol})`;
+                }
+                statusText.className = "status-bar";
+            }
         }
     });
 
-    // 4. Логика клика по клетке
+    // Клик
     cells.forEach(cell => {
         cell.addEventListener('click', () => {
-            if (!isMyTurn) return; // Не твой ход
-            const index = cell.dataset.index;
+            const index = parseInt(cell.dataset.index);
             
-            // Проверка: клетка пуста?
-            if (cell.textContent === '') {
-                makeMove(roomId, index, mySymbol);
-            }
-        });
-    });
+            get(gameRef).then(snap => {
+                const sData = snap.val();
+                if(sData.turn !== mySymbol) return; 
+                if(!isGameActive) return;
+                if(localBoard[index] !== '') return;
 
-    // 5. Рестарт
-    if (restartBtn) {
-        restartBtn.addEventListener('click', () => {
-            set(gameRef, {
-                board: Array(9).fill(''),
-                turn: 'X',
-                winner: null
+                makeMove(index, mySymbol, sData.board);
             });
         });
-    }
+    });
 }
 
-// Функция отправки хода
-function makeMove(roomId, index, symbol) {
-    // Считываем текущее состояние, чтобы проверить победу
-    // (В реальном проекте лучше Cloud Functions, но для нас сойдет и так)
-    // Мы просто шлем обновление в базу
-    
-    // ВАЖНО: Мы не можем просто обновить одну ячейку и поменять ход одной командой атомарно без транзакции,
-    // но для простоты сначала получим текущие данные.
-    // Упрощение: мы обновляем массив локально и шлем целиком.
-    
-    // ! Внимание: здесь упрощенная логика для учебного проекта.
-    // Мы предполагаем, что данные у нас актуальны из onValue.
-    
-    const cells = document.querySelectorAll('.cell');
-    const currentBoard = Array.from(cells).map(c => c.textContent);
-    currentBoard[index] = symbol;
+function playSound() {
+    notifySound.currentTime = 0;
+    notifySound.volume = 0.5; 
+    notifySound.play().catch(e => console.log("Audio:", e));
+}
 
-    const winner = checkWinner(currentBoard);
-    const isDraw = !winner && currentBoard.every(c => c !== '');
+function drawWinLine(indices, lineElement) {
+    if (!indices || indices.length !== 3) return;
+    
+    // Сбрасываем анимацию (хак, чтобы линия перерисовалась если она уже была)
+    lineElement.style.animation = 'none';
+    lineElement.offsetHeight; /* trigger reflow */
+    lineElement.style.animation = null; 
+
+    const getCoord = (index) => ({
+        x: (index % 3) * 100 + 50,
+        y: Math.floor(index / 3) * 100 + 50
+    });
+    const start = getCoord(indices[0]);
+    const end = getCoord(indices[2]);
+    
+    lineElement.setAttribute('x1', start.x);
+    lineElement.setAttribute('y1', start.y);
+    lineElement.setAttribute('x2', end.x);
+    lineElement.setAttribute('y2', end.y);
+    lineElement.style.display = 'block';
+}
+
+function makeMove(index, symbol, currentBoard) {
+    const newBoard = [...currentBoard];
+    newBoard[index] = symbol;
+    
+    const result = checkWinner(newBoard); 
+    const winnerSymbol = result ? result.winner : null;
+    // Мы больше не сохраняем winningLine в базу, так как считаем её локально
+    // Но winner сохраняем обязательно
+    const isDraw = !winnerSymbol && !newBoard.includes('');
     const nextTurn = symbol === 'X' ? 'O' : 'X';
 
-    const updates = {
-        board: currentBoard,
+    update(gameRef, {
+        board: newBoard,
         turn: nextTurn,
-        winner: winner ? winner : (isDraw ? 'draw' : null)
-    };
-
-    update(ref(db, `rooms/${roomId}/gameData`), updates);
+        winner: winnerSymbol ? winnerSymbol : (isDraw ? 'draw' : null)
+    });
 }
 
+// Эта функция теперь используется и для проверки хода, и для отрисовки линии
 function checkWinner(board) {
-    const lines = [
-        [0, 1, 2], [3, 4, 5], [6, 7, 8], // Горизонтали
-        [0, 3, 6], [1, 4, 7], [2, 5, 8], // Вертикали
-        [0, 4, 8], [2, 4, 6]             // Диагонали
-    ];
+    const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
     for (let line of lines) {
         const [a, b, c] = line;
         if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-            return board[a];
+            return { winner: board[a], line: line };
         }
     }
     return null;
 }
 
-// Очистка при выходе
 export function cleanupGame() {
     if (gameRef) off(gameRef);
 }

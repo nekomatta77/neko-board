@@ -1,8 +1,7 @@
 import { db, ref, set, push, onValue, update, remove, child, get } from './firebase-config.js';
-// Импортируем логику чата
 import { startChat, stopChat } from './chat.js';
 
-// --- DOM ЭЛЕМЕНТЫ ---
+// DOM Элементы
 const authScreen = document.getElementById('auth-screen');
 const lobbyScreen = document.getElementById('lobby-screen');
 const gameScreen = document.getElementById('game-screen');
@@ -10,11 +9,9 @@ const gameScreen = document.getElementById('game-screen');
 const usernameInput = document.getElementById('username-input');
 const loginBtn = document.getElementById('login-btn');
 const userDisplay = document.getElementById('user-display');
-
 const createGameBtn = document.getElementById('create-game-btn');
 const playersCountSelect = document.getElementById('players-count-select');
 const roomsList = document.getElementById('rooms-list');
-
 const leaveGameBtn = document.getElementById('leave-game-btn');
 const roomIdDisplay = document.getElementById('room-id-display');
 const playersContainer = document.getElementById('players-container');
@@ -23,31 +20,29 @@ const playersContainer = document.getElementById('players-container');
 const currentAvatarImg = document.getElementById('current-avatar-img');
 const nextAvatarBtn = document.getElementById('next-avatar-btn');
 const prevAvatarBtn = document.getElementById('prev-avatar-btn');
-
-// Уведомления
 const notificationContainer = document.getElementById('notification-container');
 
-// --- СОСТОЯНИЕ ---
+// Полноэкранный режим
+const fullscreenOverlay = document.getElementById('fullscreen-overlay');
+const closeFullscreenBtn = document.getElementById('close-fullscreen-btn');
+const activeGameTitle = document.getElementById('active-game-title');
+const fullscreenMount = document.getElementById('fullscreen-game-mount');
+
+// Состояние
 let currentUser = null;
 let currentAvatarId = 1;
 let myUserId = 'user_' + Math.random().toString(36).substr(2, 9);
 let currentRoomId = null;
 let amIHost = false;
-
-let activeGameCleanup = null; // Функция очистки текущей игры
+let activeGameCleanup = null;
 
 // --- УВЕДОМЛЕНИЯ ---
 function showNotification(message, type = 'info') {
     const notif = document.createElement('div');
     notif.className = `notification ${type}`;
     notif.textContent = message;
-    
     notificationContainer.appendChild(notif);
-
-    requestAnimationFrame(() => {
-        notif.classList.add('show');
-    });
-
+    requestAnimationFrame(() => notif.classList.add('show'));
     setTimeout(() => {
         notif.classList.remove('show');
         setTimeout(() => notif.remove(), 300);
@@ -62,9 +57,7 @@ function changeAvatar(direction) {
     currentAvatarId += direction;
     if (currentAvatarId > 20) currentAvatarId = 1;
     if (currentAvatarId < 1) currentAvatarId = 20;
-    
     currentAvatarImg.src = `assets/avatars/ava${currentAvatarId}.png`;
-    
     const btn = direction === 1 ? nextAvatarBtn : prevAvatarBtn;
     btn.style.transform = "scale(0.8)";
     setTimeout(() => btn.style.transform = "scale(1)", 150);
@@ -98,11 +91,7 @@ createGameBtn.addEventListener('click', () => {
     const newRoomRef = push(roomsRef);
     
     const initialPlayers = {};
-    initialPlayers[myUserId] = {
-        name: currentUser,
-        avatar: currentAvatarId,
-        isHost: true
-    };
+    initialPlayers[myUserId] = { name: currentUser, avatar: currentAvatarId, isHost: true };
 
     const roomData = {
         hostName: currentUser,
@@ -123,30 +112,24 @@ createGameBtn.addEventListener('click', () => {
 // --- СПИСОК КОМНАТ ---
 function loadRooms() {
     const roomsRef = ref(db, 'rooms');
-    
     onValue(roomsRef, (snapshot) => {
         roomsList.innerHTML = ''; 
         const data = snapshot.val();
-
         if (!data) {
             roomsList.innerHTML = '<div class="empty-state">Нет активных комнат</div>';
             return;
         }
-
         Object.keys(data).forEach(key => {
             const room = data[key];
             const playersCount = room.players ? Object.keys(room.players).length : 0;
-
-            if (room.status === "waiting") {
+            if (room.status === "waiting") { // Показываем только если статус waiting
                 const roomEl = document.createElement('div');
                 roomEl.className = 'room-card';
-                
                 let hostAvatar = 1;
                 if (room.players) {
                     const hostPlayer = Object.values(room.players).find(p => p.isHost);
                     if (hostPlayer) hostAvatar = hostPlayer.avatar;
                 }
-
                 const isFull = playersCount >= room.maxPlayers;
                 const btnText = isFull ? "Полная" : "Войти";
                 const btnClass = isFull ? "join-btn full" : "join-btn";
@@ -161,11 +144,8 @@ function loadRooms() {
                     </div>
                     <button class="${btnClass}" ${isFull ? 'disabled' : ''}>${btnText}</button>
                 `;
-                
                 if (!isFull) {
-                    roomEl.querySelector('.join-btn').addEventListener('click', () => {
-                        joinRoom(key, room.maxPlayers);
-                    });
+                    roomEl.querySelector('.join-btn').addEventListener('click', () => joinRoom(key, room.maxPlayers));
                 }
                 roomsList.appendChild(roomEl);
             }
@@ -174,21 +154,13 @@ function loadRooms() {
 }
 
 function joinRoom(roomId, maxPlayers) {
-    const roomPlayersRef = ref(db, `rooms/${roomId}/players`);
-    
-    get(roomPlayersRef).then((snapshot) => {
+    get(ref(db, `rooms/${roomId}/players`)).then((snapshot) => {
         const players = snapshot.val() || {};
         if (Object.keys(players).length >= maxPlayers) {
             showNotification("Комната уже заполнена!", "error");
             return;
         }
-
-        const myPlayerData = {
-            name: currentUser,
-            avatar: currentAvatarId,
-            isHost: false
-        };
-
+        const myPlayerData = { name: currentUser, avatar: currentAvatarId, isHost: false };
         update(ref(db, `rooms/${roomId}/players/${myUserId}`), myPlayerData)
             .then(() => {
                 currentRoomId = roomId;
@@ -196,17 +168,15 @@ function joinRoom(roomId, maxPlayers) {
                 enterGameScreen(roomId);
                 showNotification('Вы вошли в комнату');
             })
-            .catch(err => showNotification("Ошибка входа: " + err.message, "error"));
+            .catch(err => showNotification("Ошибка: " + err.message, "error"));
     });
 }
 
-// --- ЭКРАН ИГРЫ ---
+// --- ЭКРАН ИГРЫ (КОМНАТА) ---
 function enterGameScreen(roomId) {
     showScreen(gameScreen);
     roomIdDisplay.textContent = `Комната`;
     subscribeToRoom(roomId);
-    
-    // Запуск чата
     startChat(roomId, currentUser, currentAvatarId);
 }
 
@@ -216,53 +186,52 @@ function subscribeToRoom(roomId) {
     onValue(roomRef, (snapshot) => {
         const room = snapshot.val();
         
-        // 1. Если комната удалена
+        // 1. Комната удалена
         if (!room) {
             if (currentRoomId === roomId) {
-                showNotification("Комната была закрыта хостом", "info");
+                showNotification("Комната закрыта", "info");
                 handleLeave();
             }
             return;
         }
 
-        // 2. Обновляем статус хоста (на случай сбоев)
+        // 2. Обновляем статус хоста
         if (room.players && room.players[myUserId]) {
             amIHost = room.players[myUserId].isHost;
         }
 
-        // 3. Рисуем игроков
+        // 3. ВАЖНО: Проверка старта игры ПЕРЕД всем остальным
+        // Если статус игра, и у нас еще не открыт fullscreen с этой игрой
+        if (room.status && room.status.startsWith('playing_')) {
+            const gameName = room.status.split('_')[1];
+            if (fullscreenOverlay.classList.contains('hidden') || fullscreenMount.getAttribute('data-game') !== gameName) {
+                loadGameModule(gameName);
+            }
+            // Не делаем return, чтобы список игроков в лобби (под оверлеем) тоже обновлялся
+        } else {
+             // Если статус waiting, но оверлей открыт -> закрываем его (рестарт в меню)
+             if (!fullscreenOverlay.classList.contains('hidden')) {
+                 closeFullscreenGame();
+             }
+        }
+
+        // 4. Рисуем игроков
         renderPlayersList(room.players);
 
-        // 4. ПРОВЕРКА СТАТУСА: ИГРА ИДЕТ?
-        if (room.status && room.status.startsWith('playing_')) {
-            const gameName = room.status.split('_')[1]; // Получаем 'tictac'
-            loadGameModule(gameName);
-            return; // Выходим, чтобы не рисовать меню ожидания
-        }
-
-        // 5. Если игра НЕ идет, показываем лобби/меню
+        // 5. Рисуем меню выбора (только если не играем)
         const count = Object.keys(room.players).length;
-        const boardArea = document.getElementById('game-board');
+        const selectionArea = document.getElementById('game-selection-area');
         
-        // Если поле занято игрой, но статус сменился на waiting (рестарт всей комнаты)
-        if (boardArea.getAttribute('data-game')) {
-            handleLeaveGameOnly(); // Чистим игру, возвращаем меню
-        }
-
         if (count >= room.maxPlayers) {
-            // Комната полная
             if (amIHost) {
-                // Хост видит кнопки выбора
                 if (!document.getElementById('game-selector')) {
-                    renderGameMenu(boardArea);
+                    renderGameMenu(selectionArea);
                 }
             } else {
-                // Гость ждет
-                boardArea.innerHTML = '<div class="waiting-text" style="color:#888">Ждем выбора игры хостом...</div>';
+                selectionArea.innerHTML = '<div class="waiting-text" style="color:#888">Хост выбирает игру...</div>';
             }
         } else {
-            // Ожидание игроков
-            boardArea.innerHTML = `<div class="waiting-text">Ожидание... (${count}/${room.maxPlayers})</div>`;
+            selectionArea.innerHTML = `<div class="waiting-text">Ожидание... (${count}/${room.maxPlayers})</div>`;
         }
     });
 }
@@ -270,7 +239,6 @@ function subscribeToRoom(roomId) {
 function renderPlayersList(playersObj) {
     playersContainer.innerHTML = '';
     if (!playersObj) return;
-
     Object.values(playersObj).forEach(player => {
         const el = document.createElement('div');
         el.className = 'player-slot';
@@ -285,74 +253,110 @@ function renderPlayersList(playersObj) {
     });
 }
 
-// --- МЕНЮ ВЫБОРА ИГР (Только для хоста) ---
+// --- МЕНЮ ВЫБОРА ИГР (КРАСИВОЕ) ---
 function renderGameMenu(container) {
     container.innerHTML = `
         <div id="game-selector" class="game-selector">
             <h3>Выберите игру:</h3>
-            <div class="games-list">
-                <button class="game-option-btn" onclick="startGameTrigger('tictac')">
-                    ❌⭕ Крестики-Нолики
+            <div class="games-grid-menu">
+                
+                <button class="game-card-btn tictac" onclick="startGameTrigger('tictac')">
+                    <div class="game-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                            <circle cx="12" cy="12" r="10" stroke-opacity="0.2"/>
+                        </svg>
+                    </div>
+                    <span>Крестики-Нолики</span>
                 </button>
-                <button class="game-option-btn" style="opacity:0.5; cursor:not-allowed">
-                    🃏 Дурак (Скоро)
+
+                <button class="game-card-btn durak disabled">
+                    <div class="game-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                           <rect x="6" y="2" width="12" height="20" rx="2" />
+                           <path d="M12 8v8M9 12h6" />
+                        </svg>
+                    </div>
+                    <span>Дурак (Скоро)</span>
                 </button>
+
             </div>
         </div>
     `;
 }
 
-// Глобальная функция для вызова из HTML (onclick)
 window.startGameTrigger = function(gameName) {
     if (!currentRoomId || !amIHost) return;
-    
-    // Меняем статус в БД -> у всех запустится loadGameModule
-    update(ref(db, `rooms/${currentRoomId}`), {
-        status: `playing_${gameName}`
-    });
+    update(ref(db, `rooms/${currentRoomId}`), { status: `playing_${gameName}` });
 }
 
-// --- ДИНАМИЧЕСКАЯ ЗАГРУЗКА ИГРЫ ---
+// --- ДИНАМИЧЕСКАЯ ЗАГРУЗКА (FULLSCREEN) ---
 async function loadGameModule(gameName) {
-    const boardArea = document.getElementById('game-board');
+    // 1. Показываем оверлей
+    fullscreenMount.innerHTML = '<div class="waiting-text">Загрузка...</div>';
+    fullscreenMount.setAttribute('data-game', gameName);
+    fullscreenOverlay.classList.remove('hidden');
     
-    // Если эта игра уже загружена, ничего не делаем
-    if (boardArea.getAttribute('data-game') === gameName) return;
-    
-    // Очищаем поле
-    boardArea.innerHTML = '<div class="waiting-text">Загрузка игры...</div>';
-    boardArea.setAttribute('data-game', gameName);
+    // Меняем заголовок
+    activeGameTitle.textContent = (gameName === 'tictac') ? "Крестики-Нолики" : "Игра";
 
-    // 1. Определяем платформу
     const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const cssFile = isIos ? 'iphone.css' : 'android.css';
     
-    // 2. Подключаем CSS
+    // Подключаем CSS
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = `games/${gameName}/${cssFile}`;
     link.id = 'game-css';
     document.head.appendChild(link);
 
-    // 3. Импортируем JS модуля
     try {
         const gameModule = await import(`../games/${gameName}/${gameName}.js`);
-        
-        // Очищаем предыдущую логику если была
         if (activeGameCleanup) activeGameCleanup();
         
-        // Запускаем игру
-        gameModule.initGame(boardArea, currentRoomId, myUserId, amIHost);
-        activeGameCleanup = gameModule.cleanupGame; // Сохраняем функцию очистки
+        // Рендерим игру
+        gameModule.initGame(fullscreenMount, currentRoomId, myUserId, amIHost);
+        activeGameCleanup = gameModule.cleanupGame;
 
     } catch (error) {
-        console.error("Ошибка загрузки:", error);
-        boardArea.innerHTML = '<div class="waiting-text error">Ошибка загрузки файла игры</div>';
-        showNotification("Не удалось загрузить игру", "error");
+        console.error(error);
+        fullscreenMount.innerHTML = '<div class="waiting-text error">Ошибка игры</div>';
     }
 }
 
-// --- ВЫХОД ---
+// Кнопка "Свернуть/Выйти" в игре (только локально для хоста, либо сброс для всех)
+closeFullscreenBtn.addEventListener('click', () => {
+    // Если ты хост, ты сбрасываешь игру для всех
+    if (amIHost && currentRoomId) {
+        if(confirm("Завершить игру для всех?")) {
+            update(ref(db, `rooms/${currentRoomId}`), { status: 'waiting' });
+            closeFullscreenGame();
+        }
+    } else {
+        // Если гость - просто спрашиваем выход из комнаты?
+        if(confirm("Выйти из игры?")) {
+             // Логика выхода гостя
+             leaveGameBtn.click();
+        }
+    }
+});
+
+function closeFullscreenGame() {
+    fullscreenOverlay.classList.add('hidden');
+    fullscreenMount.innerHTML = '';
+    fullscreenMount.removeAttribute('data-game');
+    
+    const gameCss = document.getElementById('game-css');
+    if (gameCss) gameCss.remove();
+
+    if (activeGameCleanup) {
+        activeGameCleanup();
+        activeGameCleanup = null;
+    }
+}
+
+
+// --- ВЫХОД ИЗ КОМНАТЫ ---
 leaveGameBtn.addEventListener('click', () => {
     if (currentRoomId) {
         const playerRef = ref(db, `rooms/${currentRoomId}/players/${myUserId}`);
@@ -369,29 +373,11 @@ leaveGameBtn.addEventListener('click', () => {
     handleLeave();
 });
 
-// Полный выход в лобби
 function handleLeave() {
     currentRoomId = null;
-    stopChat(); // Останавливаем чат
-    handleLeaveGameOnly(); // Чистим игру
+    stopChat();
+    closeFullscreenGame();
     showScreen(lobbyScreen);
-}
-
-// Очистка только игрового поля (без выхода из комнаты)
-function handleLeaveGameOnly() {
-    // Удаляем CSS игры
-    const gameCss = document.getElementById('game-css');
-    if (gameCss) gameCss.remove();
-    
-    // Вызываем cleanup самой игры
-    if (activeGameCleanup) {
-        activeGameCleanup();
-        activeGameCleanup = null;
-    }
-    
-    const board = document.getElementById('game-board');
-    board.removeAttribute('data-game');
-    board.innerHTML = '';
 }
 
 function showScreen(screen) {
