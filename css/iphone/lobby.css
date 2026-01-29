@@ -1,4 +1,6 @@
-/* КРАСИВЫЙ ПРОФИЛЬ ИГРОКА (iOS) */
+/* css/iphone/lobby.css */
+
+/* --- ПРОФИЛЬ ИГРОКА --- */
 .profile-header {
     background-color: rgba(44, 44, 46, 0.8);
     backdrop-filter: blur(20px);
@@ -22,6 +24,7 @@
     border-radius: 18px; /* Squircle */
     margin-right: 16px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    object-fit: cover;
 }
 
 .profile-text {
@@ -37,13 +40,13 @@
 
 .profile-status {
     font-size: 13px;
-    color: #30D158; /* iOS Green status */
+    color: #30D158;
     margin-top: 2px;
     font-weight: 500;
 }
 
 .logout-btn {
-    background: rgba(255, 69, 58, 0.15); /* Red transparent */
+    background: rgba(255, 69, 58, 0.15);
     border: none;
     color: #FF453A;
     width: 44px;
@@ -55,7 +58,7 @@
     align-items: center;
 }
 
-/* ЗОНА СОЗДАНИЯ (iOS) */
+/* --- ЗОНА СОЗДАНИЯ --- */
 .create-zone {
     display: flex;
     gap: 12px;
@@ -72,7 +75,6 @@
     position: relative;
 }
 
-/* Кастомная стрелочка для iOS */
 .select-wrapper::after {
     content: '▼';
     font-size: 10px;
@@ -125,10 +127,14 @@ h3 {
     padding-left: 10px;
 }
 
-/* СПИСОК КОМНАТ */
+/* --- СПИСОК КОМНАТ --- */
 .scroll-area {
     flex-grow: 1;
     overflow-y: auto;
+}
+
+.room-scroll {
+    max-height: 40vh;
 }
 
 .empty-state {
@@ -174,3 +180,4 @@ h3 {
     color: #666;
     pointer-events: none;
 }
+

@@ -1,0 +1,68 @@
+/* css/android/chat.css */
+.chat-area {
+    margin-top: 15px;
+    background-color: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    height: 200px; /* Высота чата в комнате */
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+.chat-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 10px;
+    font-size: 13px;
+    color: #ddd;
+}
+
+.chat-msg {
+    margin-bottom: 5px;
+    word-wrap: break-word;
+}
+
+.msg-author {
+    font-weight: bold;
+    margin-right: 5px;
+}
+
+.chat-welcome {
+    color: #666;
+    font-style: italic;
+    text-align: center;
+    margin-top: 10px;
+}
+
+.chat-input-row {
+    display: flex;
+    border-top: 1px solid #333;
+    padding: 5px;
+}
+
+#chat-input {
+    flex-grow: 1;
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 8px;
+    margin: 0;
+    font-size: 14px;
+}
+
+#send-chat-btn {
+    width: 40px;
+    background: #bb86fc;
+    border: none;
+    border-radius: 4px;
+    color: black;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}

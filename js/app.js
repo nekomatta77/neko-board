@@ -1,4 +1,4 @@
-import { db, ref, set, push, onValue, update, remove, child, get } from './firebase-config.js';
+import { db, ref, set, push, onValue, update, remove, child, get, query, limitToLast, onChildAdded, off } from './firebase-config.js';
 
 // DOM Элементы
 const authScreen = document.getElementById('auth-screen');
@@ -10,33 +10,68 @@ const loginBtn = document.getElementById('login-btn');
 const userDisplay = document.getElementById('user-display');
 
 const createGameBtn = document.getElementById('create-game-btn');
-const playersCountSelect = document.getElementById('players-count-select'); // Select
+const playersCountSelect = document.getElementById('players-count-select');
 const roomsList = document.getElementById('rooms-list');
 
 const leaveGameBtn = document.getElementById('leave-game-btn');
 const roomIdDisplay = document.getElementById('room-id-display');
-const playersContainer = document.getElementById('players-container'); // Контейнер игроков
+const playersContainer = document.getElementById('players-container');
 
+// Чат
+const chatMessages = document.getElementById('chat-messages');
+const chatInput = document.getElementById('chat-input');
+const sendChatBtn = document.getElementById('send-chat-btn');
+
+// Аватар
 const currentAvatarImg = document.getElementById('current-avatar-img');
 const nextAvatarBtn = document.getElementById('next-avatar-btn');
+const prevAvatarBtn = document.getElementById('prev-avatar-btn'); // Новая кнопка
+
+// Уведомления
+const notificationContainer = document.getElementById('notification-container');
 
 // Состояние
 let currentUser = null;
 let currentAvatarId = 1;
-// Генерируем уникальный ID для текущей сессии, чтобы различать игроков с одинаковыми именами
 let myUserId = 'user_' + Math.random().toString(36).substr(2, 9);
 let currentRoomId = null;
+let amIHost = false;
+
+// --- УВЕДОМЛЕНИЯ ---
+function showNotification(message, type = 'info') {
+    const notif = document.createElement('div');
+    notif.className = `notification ${type}`;
+    notif.textContent = message;
+    
+    notificationContainer.appendChild(notif);
+
+    // Анимация появления
+    requestAnimationFrame(() => {
+        notif.classList.add('show');
+    });
+
+    // Удаление через 3 секунды
+    setTimeout(() => {
+        notif.classList.remove('show');
+        setTimeout(() => notif.remove(), 300);
+    }, 3000);
+}
 
 // --- ЛОГИКА АВАТАРА ---
-nextAvatarBtn.addEventListener('click', nextAvatar);
+nextAvatarBtn.addEventListener('click', () => changeAvatar(1));
+prevAvatarBtn.addEventListener('click', () => changeAvatar(-1));
 
-function nextAvatar() {
-    currentAvatarId++;
+function changeAvatar(direction) {
+    currentAvatarId += direction;
     if (currentAvatarId > 20) currentAvatarId = 1;
+    if (currentAvatarId < 1) currentAvatarId = 20;
+    
     currentAvatarImg.src = `assets/avatars/ava${currentAvatarId}.png`;
     
-    nextAvatarBtn.style.transform = "scale(0.9)";
-    setTimeout(() => nextAvatarBtn.style.transform = "scale(1)", 150);
+    // Анимация кнопок
+    const btn = direction === 1 ? nextAvatarBtn : prevAvatarBtn;
+    btn.style.transform = "scale(0.8)";
+    setTimeout(() => btn.style.transform = "scale(1)", 150);
 }
 
 // --- АВТОРИЗАЦИЯ ---
@@ -54,11 +89,52 @@ loginBtn.addEventListener('click', () => {
             </div>
         `;
         showScreen(lobbyScreen);
-        loadRooms(); 
+        loadRooms();
     } else {
-        alert('Пожалуйста, введите ник!');
+        showNotification('Пожалуйста, введите ник!', 'error');
     }
 });
+
+// --- ЧАТ КОМНАТЫ ---
+let roomChatRef = null;
+
+function initRoomChat(roomId) {
+    chatMessages.innerHTML = '<div class="chat-welcome">Вы вошли в чат комнаты</div>';
+    roomChatRef = query(ref(db, `rooms/${roomId}/chat`), limitToLast(50));
+    
+    onChildAdded(roomChatRef, (snapshot) => {
+        const msg = snapshot.val();
+        renderMessage(msg);
+    });
+}
+
+sendChatBtn.addEventListener('click', sendMessage);
+
+function sendMessage() {
+    if (!currentRoomId) return;
+    const text = chatInput.value.trim();
+    if (text) {
+        push(ref(db, `rooms/${currentRoomId}/chat`), {
+            user: currentUser,
+            text: text,
+            avatar: currentAvatarId
+        });
+        chatInput.value = '';
+    }
+}
+
+function renderMessage(msg) {
+    const el = document.createElement('div');
+    el.className = 'chat-msg';
+    const isMine = msg.user === currentUser;
+    
+    el.innerHTML = `
+        <span class="msg-author" style="color: ${isMine ? '#bb86fc' : '#03dac6'}">${msg.user}:</span>
+        <span class="msg-text">${msg.text}</span>
+    `;
+    chatMessages.appendChild(el);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
 
 // --- СОЗДАНИЕ КОМНАТЫ ---
 createGameBtn.addEventListener('click', () => {
@@ -66,7 +142,6 @@ createGameBtn.addEventListener('click', () => {
     const roomsRef = ref(db, 'rooms');
     const newRoomRef = push(roomsRef);
     
-    // Создаем объект игроков. Ключ - уникальный ID, значение - данные
     const initialPlayers = {};
     initialPlayers[myUserId] = {
         name: currentUser,
@@ -75,20 +150,22 @@ createGameBtn.addEventListener('click', () => {
     };
 
     const roomData = {
-        hostName: currentUser, // Для отображения в списке комнат
+        hostName: currentUser,
         maxPlayers: maxPlayers,
         players: initialPlayers,
-        status: "waiting", // waiting | playing
+        status: "waiting",
         createdAt: Date.now()
     };
 
     set(newRoomRef, roomData).then(() => {
         currentRoomId = newRoomRef.key;
+        amIHost = true;
         enterGameScreen(currentRoomId);
+        showNotification('Комната создана!');
     });
 });
 
-// --- СПИСОК КОМНАТ (LOBBY) ---
+// --- СПИСОК КОМНАТ ---
 function loadRooms() {
     const roomsRef = ref(db, 'rooms');
     
@@ -103,22 +180,18 @@ function loadRooms() {
 
         Object.keys(data).forEach(key => {
             const room = data[key];
-            
-            // Считаем текущее количество игроков
             const playersCount = room.players ? Object.keys(room.players).length : 0;
 
             if (room.status === "waiting") {
                 const roomEl = document.createElement('div');
                 roomEl.className = 'room-card';
                 
-                // Находим аватар хоста
                 let hostAvatar = 1;
                 if (room.players) {
                     const hostPlayer = Object.values(room.players).find(p => p.isHost);
                     if (hostPlayer) hostAvatar = hostPlayer.avatar;
                 }
 
-                // Кнопка активна только если есть место
                 const isFull = playersCount >= room.maxPlayers;
                 const btnText = isFull ? "Полная" : "Войти";
                 const btnClass = isFull ? "join-btn full" : "join-btn";
@@ -139,49 +212,45 @@ function loadRooms() {
                         joinRoom(key, room.maxPlayers);
                     });
                 }
-
                 roomsList.appendChild(roomEl);
             }
         });
     });
 }
 
-// --- ВХОД В КОМНАТУ ---
 function joinRoom(roomId, maxPlayers) {
-    // Сначала проверяем, есть ли место (через транзакцию или просто get)
     const roomPlayersRef = ref(db, `rooms/${roomId}/players`);
     
     get(roomPlayersRef).then((snapshot) => {
         const players = snapshot.val() || {};
         if (Object.keys(players).length >= maxPlayers) {
-            alert("Комната уже заполнена!");
+            showNotification("Комната уже заполнена!", "error");
             return;
         }
 
-        // Добавляем себя в список игроков
         const myPlayerData = {
             name: currentUser,
             avatar: currentAvatarId,
             isHost: false
         };
 
-        // Записываем по своему ID
         update(ref(db, `rooms/${roomId}/players/${myUserId}`), myPlayerData)
             .then(() => {
                 currentRoomId = roomId;
+                amIHost = false;
                 enterGameScreen(roomId);
+                showNotification('Вы вошли в комнату');
             })
-            .catch(err => alert("Ошибка входа: " + err.message));
+            .catch(err => showNotification("Ошибка входа: " + err.message, "error"));
     });
 }
 
-// --- ЭКРАН ИГРЫ И ОТОБРАЖЕНИЕ ИГРОКОВ ---
+// --- ЭКРАН ИГРЫ ---
 function enterGameScreen(roomId) {
     showScreen(gameScreen);
     roomIdDisplay.textContent = `Комната`;
-    
-    // Подписываемся на изменения в этой комнате
     subscribeToRoom(roomId);
+    initRoomChat(roomId);
 }
 
 function subscribeToRoom(roomId) {
@@ -190,35 +259,40 @@ function subscribeToRoom(roomId) {
     onValue(roomRef, (snapshot) => {
         const room = snapshot.val();
         if (!room) {
-            // Комната удалена
-            alert("Комната была закрыта хостом");
-            currentRoomId = null;
-            showScreen(lobbyScreen);
+            // Если комната удалена, а мы еще на экране игры
+            if (currentRoomId === roomId) {
+                showNotification("Комната была закрыта хостом", "info");
+                handleLeave();
+            }
             return;
         }
 
-        // Рендерим игроков
+        if (room.players && room.players[myUserId]) {
+            amIHost = room.players[myUserId].isHost;
+        }
+
         renderPlayersList(room.players);
 
-        // Проверка: Если игроков столько же сколько maxPlayers -> игра начинается (визуально)
         const count = Object.keys(room.players).length;
         const statusText = document.querySelector('.waiting-text');
         
         if (statusText) {
             if (count >= room.maxPlayers) {
-                statusText.textContent = "Все игроки на месте! Игра начинается...";
-                statusText.style.color = "#4CAF50";
+                if (amIHost) {
+                    statusText.innerHTML = `<span style="color:#03dac6">Вы Хост! Скоро здесь будет выбор игры...</span>`;
+                } else {
+                    statusText.textContent = "Ждем выбора игры хостом...";
+                    statusText.style.color = "#888";
+                }
             } else {
                 statusText.textContent = `Ожидание... (${count}/${room.maxPlayers})`;
-                statusText.style.color = "#888";
             }
         }
     });
 }
 
-// Функция отрисовки кружков с игроками
 function renderPlayersList(playersObj) {
-    playersContainer.innerHTML = ''; // Чистим
+    playersContainer.innerHTML = '';
     if (!playersObj) return;
 
     Object.values(playersObj).forEach(player => {
@@ -237,17 +311,28 @@ function renderPlayersList(playersObj) {
 
 leaveGameBtn.addEventListener('click', () => {
     if (currentRoomId) {
-        // Удаляем себя из списка игроков
-        remove(ref(db, `rooms/${currentRoomId}/players/${myUserId}`))
-            .then(() => {
-                // Если мы были хостом, можно удалить комнату целиком или передать права
-                // Пока просто выходим. Если игроков 0 - Firebase сам оставит пустую запись, 
-                // но в реальном проекте лучше чистить пустые комнаты.
+        const playerRef = ref(db, `rooms/${currentRoomId}/players/${myUserId}`);
+        const roomRef = ref(db, `rooms/${currentRoomId}`);
+
+        remove(playerRef).then(() => {
+            get(child(roomRef, 'players')).then((snapshot) => {
+                if (!snapshot.exists()) {
+                    remove(roomRef);
+                }
             });
-        currentRoomId = null;
+        });
+    }
+    handleLeave();
+});
+
+function handleLeave() {
+    currentRoomId = null;
+    if (roomChatRef) {
+        off(roomChatRef);
+        roomChatRef = null;
     }
     showScreen(lobbyScreen);
-});
+}
 
 function showScreen(screen) {
     authScreen.classList.add('hidden');

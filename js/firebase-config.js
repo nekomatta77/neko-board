@@ -1,8 +1,8 @@
-// Используем CDN ссылки, так как в Acode нет npm-сборщика
+// Используем CDN ссылки
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, set, push, onValue, update, remove, child, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+// ВАЖНО: Добавил 'off' в список импорта
+import { getDatabase, ref, set, push, onValue, update, remove, child, get, query, limitToLast, onChildAdded, off } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-// Твои настройки (я вставил их сюда)
 const firebaseConfig = {
   apiKey: "AIzaSyC5E-bN2LNWElo7I4kcCGqcgMvoy8WX4wY",
   authDomain: "neko-board.firebaseapp.com",
@@ -18,5 +18,5 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// Экспортируем методы базы данных, чтобы использовать их в app.js
-export { db, ref, set, push, onValue, update, remove, child, get };
+// Экспортируем ВСЕ методы, включая off
+export { db, ref, set, push, onValue, update, remove, child, get, query, limitToLast, onChildAdded, off };

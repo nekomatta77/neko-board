@@ -15,7 +15,8 @@
             platformFolder = 'iphone';
         }
 
-        const modules = ['main.css', 'menu.css', 'lobby.css', 'game.css'];
+        const modules = ['main.css', 'menu.css', 'lobby.css', 'game.css', 'chat.css'];
+        
         modules.forEach(file => {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
@@ -38,10 +39,17 @@
             <div class="card">
                 <h2>Вход</h2>
                 <div class="avatar-selection">
+                    <button id="prev-avatar-btn" class="nav-btn left">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
+                    </button>
+
                     <div class="avatar-frame">
                         <img id="current-avatar-img" src="assets/avatars/ava1.png" alt="Avatar">
                     </div>
-                    <button id="next-avatar-btn" class="refresh-btn">
+                    
+                    <button id="next-avatar-btn" class="nav-btn right">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="9 18 15 12 9 6"></polyline>
                         </svg>
@@ -71,13 +79,15 @@
                         <option value="2">2</option>
                         <option value="3">3</option>
                         <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
                     </select>
                 </div>
                 <button id="create-game-btn" class="action-btn">➕ Создать</button>
             </div>
             
             <h3>Активные игры:</h3>
-            <div id="rooms-list" class="scroll-area">
+            <div id="rooms-list" class="scroll-area room-scroll">
                 <div class="empty-state">Поиск комнат...</div>
             </div>
         </div>
@@ -88,14 +98,23 @@
                 <span id="room-id-display">Комната</span>
             </div>
             
-            <div class="players-grid" id="players-container">
-                </div>
+            <div class="players-grid" id="players-container"></div>
 
             <div id="game-board" class="board-area">
                 <div class="waiting-text">Ожидание игроков...</div>
             </div>
+
+            <div class="chat-area">
+                <div id="chat-messages" class="chat-messages"></div>
+                <div class="chat-input-row">
+                    <input type="text" id="chat-input" placeholder="Чат комнаты..." autocomplete="off">
+                    <button id="send-chat-btn">➤</button>
+                </div>
+            </div>
         </div>
     </div>
+
+    <div id="notification-container"></div>
 
     <script type="module" src="js/app.js"></script>
 </body>
