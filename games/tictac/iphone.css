@@ -1,96 +1,182 @@
 #tictac-game {
     width: 100%;
-    max-width: 320px;
+    max-width: 340px; /* Чуть шире для удобства */
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
-.status-bar {
-    font-size: 20px;
+/* --- ШАПКА И ПРАВИЛА --- */
+.header-row {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 24px;
-    font-weight: 600;
-    color: #fff;
-    text-align: center;
+    padding-bottom: 12px;
+    border-bottom: 0.5px solid rgba(255,255,255,0.2);
 }
 
+.status-bar {
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
+    padding: 0;
+}
 .status-bar.win { color: #30D158; }
 .status-bar.lose { color: #FF453A; }
 
+#rules-btn {
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: #0A84FF;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-weight: 600;
+    font-size: 18px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(10px);
+}
+
+/* --- СЕТКА И КОНТЕЙНЕР --- */
 .game-container {
     position: relative;
     width: 100%;
     aspect-ratio: 1 / 1;
     background: rgba(255,255,255,0.05);
-    padding: 12px;
+    padding: 8px; /* Отступ внутри рамки */
     border-radius: 24px;
-    backdrop-filter: blur(10px);
-    box-sizing: border-box; /* Важно, чтобы padding не ломал размер */
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-sizing: border-box;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
 }
 
 .grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap: 12px;
+    /* Columns/Rows задаются через JS style="..." */
+    gap: 6px; 
     width: 100%;
     height: 100%;
 }
 
 .cell {
-    background-color: rgba(255,255,255,0.1);
-    border-radius: 16px;
+    background-color: rgba(255,255,255,0.08);
+    border-radius: 12px;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 48px;
+    font-size: 28px; /* Базовый размер */
     font-weight: 700;
     cursor: default;
     transition: background 0.2s;
     user-select: none;
-    overflow: hidden;
     line-height: 1;
 }
 
-.cell:not(.X):not(.O) {
-    cursor: pointer;
+/* Адаптация размера шрифта для больших полей */
+@media (max-width: 360px) {
+    .cell { font-size: 22px; }
 }
 
-.cell:active:not(.X):not(.O) {
+/* Если клетка пустая - показываем, что можно нажать */
+.cell:not([class*="symbol-"]) {
+    cursor: pointer;
+}
+.cell:active:not([class*="symbol-"]) {
     background-color: rgba(255,255,255,0.2);
 }
 
-.cell.X { color: #FF2D55; }
-.cell.O { color: #0A84FF; }
+/* --- ЦВЕТА ФИГУР (iOS Neon Style) --- */
+/* X - Красный/Розовый */
+.symbol-x { color: #FF2D55; filter: drop-shadow(0 0 4px rgba(255, 45, 85, 0.4)); }
+/* O - Синий */
+.symbol-o { color: #0A84FF; filter: drop-shadow(0 0 4px rgba(10, 132, 255, 0.4)); }
+/* Треугольник - Желтый */
+.symbol-tri { color: #FFD60A; filter: drop-shadow(0 0 4px rgba(255, 214, 10, 0.4)); }
+/* Квадрат - Голубой/Циан */
+.symbol-sq { color: #64D2FF; filter: drop-shadow(0 0 4px rgba(100, 210, 255, 0.4)); }
+/* Звезда - Оранжевый */
+.symbol-star { color: #FF9F0A; filter: drop-shadow(0 0 4px rgba(255, 159, 10, 0.4)); }
+/* Ромб - Фиолетовый */
+.symbol-dia { color: #BF5AF2; filter: drop-shadow(0 0 4px rgba(191, 90, 242, 0.4)); }
 
-/* SVG Линия */
+/* --- ЛИНИЯ ПОБЕДЫ --- */
 .win-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: 0; left: 0; width: 100%; height: 100%;
     pointer-events: none;
     z-index: 10;
-    /* Компенсация padding .game-container, чтобы линия совпадала с сеткой */
-    padding: 12px; 
+    padding: 8px; /* Компенсация padding .game-container */
     box-sizing: border-box;
 }
 
 #win-line {
-    stroke: #FFD60A; /* Желтый цвет победы iOS */
+    stroke: #ffffff; /* Белая линия поверх всего */
     stroke-width: 8;
     stroke-linecap: round;
-    stroke-dasharray: 350;
-    stroke-dashoffset: 350;
+    stroke-dasharray: 450;
+    stroke-dashoffset: 450;
     animation: drawLine 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
 }
+@keyframes drawLine { to { stroke-dashoffset: 0; } }
 
-@keyframes drawLine {
-    to { stroke-dashoffset: 0; }
+/* --- МОДАЛЬНОЕ ОКНО ПРАВИЛ --- */
+#rules-modal {
+    position: fixed; /* Fixed чтобы перекрывало оверлей */
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(5px);
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 30px;
+    box-sizing: border-box;
 }
 
+.rules-content {
+    background: rgba(44, 44, 46, 0.95);
+    padding: 24px;
+    border-radius: 24px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    max-width: 300px;
+    border: 0.5px solid rgba(255,255,255,0.1);
+}
+
+.rules-content h4 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.rules-content p {
+    color: #AEAEB2;
+    font-size: 15px;
+    line-height: 1.5;
+    margin-bottom: 20px;
+}
+
+.rules-content button {
+    width: 100%;
+    padding: 14px;
+    background: #0A84FF;
+    color: white;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+/* --- КНОПКА РЕСТАРТ --- */
 #restart-btn {
     margin-top: 24px;
     padding: 14px 28px;
@@ -103,22 +189,12 @@
     box-shadow: 0 4px 12px rgba(10, 132, 255, 0.3);
 }
 
-.turn-info {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.status-avatar {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px; /* Squircle */
-    margin-right: 8px;
-    vertical-align: middle;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
-
-.loading-text {
-    font-size: 15px;
-    color: rgba(255,255,255,0.5);
+/* --- ИНФО О ХОДЕ --- */
+.turn-info { display: flex; align-items: center; justify-content: center; }
+.status-avatar { 
+    width: 28px; height: 28px; 
+    border-radius: 8px; 
+    margin-right: 8px; 
+    vertical-align: middle; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2); 
 }

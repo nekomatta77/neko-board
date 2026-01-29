@@ -6,19 +6,40 @@
     align-items: center;
 }
 
-.status-bar {
-    font-size: 18px;
+/* Шапка с правилами */
+.header-row {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 20px;
-    font-weight: bold;
-    color: #fff;
-    padding: 10px;
-    border-bottom: 2px solid #bb86fc;
+    border-bottom: 2px solid #333;
+    padding-bottom: 10px;
 }
 
-.status-bar.win { color: #03dac6; border-color: #03dac6; }
-.status-bar.lose { color: #cf6679; border-color: #cf6679; }
+.status-bar {
+    font-size: 18px;
+    font-weight: bold;
+    color: #fff;
+    border: none;
+    margin: 0;
+    padding: 0;
+}
+.status-bar.win { color: #03dac6; }
+.status-bar.lose { color: #cf6679; }
 
-/* Контейнер для наложения SVG поверх сетки */
+#rules-btn {
+    background: #333;
+    border: 1px solid #555;
+    color: #aaa;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* Сетка */
 .game-container {
     position: relative;
     width: 100%;
@@ -27,66 +48,86 @@
 
 .grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr); /* Фиксируем и строки */
-    gap: 10px;
+    /* Columns и Rows задаются через JS */
+    gap: 4px; /* Уменьшил отступ для больших полей */
     width: 100%;
     height: 100%;
 }
 
 .cell {
     background-color: #2c2c2c;
-    border-radius: 8px;
+    border-radius: 4px;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 40px;
+    font-size: 24px; /* Уменьшил шрифт для больших полей */
     font-weight: bold;
     cursor: default;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     user-select: none;
-    /* Важно для предотвращения "ломания" */
-    overflow: hidden; 
     line-height: 1;
 }
-
-/* Курсор "рука" только если игра идет и клетка пуста */
-.cell:not(.X):not(.O) {
-    cursor: pointer;
+/* Адаптивный шрифт */
+@media (min-width: 350px) {
+    .cell { font-size: 28px; }
 }
 
-.cell:active:not(.X):not(.O) {
-    background-color: #383838;
-}
+.cell:not([class*="symbol-"]) { cursor: pointer; }
+.cell:active:not([class*="symbol-"]) { background-color: #383838; }
 
-/* Цвета фигур */
-.cell.X { color: #bb86fc; text-shadow: 0 0 10px rgba(187, 134, 252, 0.5); }
-.cell.O { color: #03dac6; text-shadow: 0 0 10px rgba(3, 218, 198, 0.5); }
+/* --- ЦВЕТА ФИГУР --- */
+.symbol-x { color: #bb86fc; text-shadow: 0 0 5px rgba(187, 134, 252, 0.5); }
+.symbol-o { color: #03dac6; text-shadow: 0 0 5px rgba(3, 218, 198, 0.5); }
+.symbol-tri { color: #F2C94C; text-shadow: 0 0 5px rgba(242, 201, 76, 0.5); } /* Желтый */
+.symbol-sq  { color: #2D9CDB; text-shadow: 0 0 5px rgba(45, 156, 219, 0.5); } /* Синий */
+.symbol-star{ color: #F2994A; text-shadow: 0 0 5px rgba(242, 153, 74, 0.5); } /* Оранж */
+.symbol-dia { color: #EB5757; text-shadow: 0 0 5px rgba(235, 87, 87, 0.5); } /* Розовый */
 
-/* SVG Линия */
+/* Линия */
 .win-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none; /* Чтобы клики проходили сквозь линию */
+    top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
     z-index: 10;
 }
-
 #win-line {
     stroke: #ffffff;
     stroke-width: 6;
     stroke-linecap: round;
-    /* Анимация отрисовки */
-    stroke-dasharray: 300; /* Длина линии примерная */
-    stroke-dashoffset: 300;
+    stroke-dasharray: 450;
+    stroke-dashoffset: 450;
     animation: drawLine 0.5s forwards ease-out;
-    filter: drop-shadow(0 0 5px rgba(255,255,255,0.8));
+    filter: drop-shadow(0 0 3px rgba(0,0,0,0.8));
 }
+@keyframes drawLine { to { stroke-dashoffset: 0; } }
 
-@keyframes drawLine {
-    to { stroke-dashoffset: 0; }
+/* Модалка правил */
+#rules-modal {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9);
+    z-index: 20;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.rules-content {
+    background: #1e1e1e;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid #bb86fc;
+}
+.rules-content h4 { margin-top: 0; color: #bb86fc; }
+.rules-content p { color: #ccc; font-size: 14px; line-height: 1.5; }
+.rules-content button {
+    margin-top: 15px;
+    padding: 8px 16px;
+    background: #333;
+    color: white;
+    border: none;
+    border-radius: 4px;
 }
 
 #restart-btn {
@@ -99,24 +140,6 @@
     text-transform: uppercase;
 }
 
-/* Стили для строки статуса с аватаром */
-.turn-info {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.status-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    margin-right: 8px;
-    border: 1px solid #fff;
-    vertical-align: middle;
-}
-
-.loading-text {
-    font-size: 14px;
-    color: #888;
-    font-style: italic;
-}
+/* Статус аватар */
+.turn-info { display: flex; align-items: center; justify-content: center; }
+.status-avatar { width: 24px; height: 24px; border-radius: 50%; margin-right: 8px; border: 1px solid #fff; vertical-align: middle; }
