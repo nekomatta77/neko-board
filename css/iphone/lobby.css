@@ -1,3 +1,4 @@
+/* КРАСИВЫЙ ПРОФИЛЬ ИГРОКА (iOS) */
 .profile-header {
     background-color: rgba(44, 44, 46, 0.8);
     backdrop-filter: blur(20px);
@@ -18,7 +19,7 @@
 .profile-avatar {
     width: 56px;
     height: 56px;
-    border-radius: 18px; 
+    border-radius: 18px; /* Squircle */
     margin-right: 16px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
@@ -36,13 +37,13 @@
 
 .profile-status {
     font-size: 13px;
-    color: #30D158;
+    color: #30D158; /* iOS Green status */
     margin-top: 2px;
     font-weight: 500;
 }
 
 .logout-btn {
-    background: rgba(255, 69, 58, 0.15);
+    background: rgba(255, 69, 58, 0.15); /* Red transparent */
     border: none;
     color: #FF453A;
     width: 44px;
@@ -54,9 +55,56 @@
     align-items: center;
 }
 
+/* ЗОНА СОЗДАНИЯ (iOS) */
+.create-zone {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.select-wrapper {
+    background-color: #2C2C2E;
+    border-radius: 12px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    position: relative;
+}
+
+/* Кастомная стрелочка для iOS */
+.select-wrapper::after {
+    content: '▼';
+    font-size: 10px;
+    color: #888;
+    position: absolute;
+    right: 12px;
+    pointer-events: none;
+}
+
+.select-wrapper label {
+    font-size: 13px;
+    color: #888;
+    margin-right: 8px;
+    font-weight: 500;
+}
+
+select {
+    -webkit-appearance: none;
+    background: transparent;
+    color: white;
+    border: none;
+    font-size: 17px;
+    font-weight: 600;
+    width: 100%;
+    outline: none;
+    padding: 14px 0;
+}
+
 .action-btn {
     -webkit-appearance: none;
-    width: 100%;
+    width: auto;
+    flex-grow: 2;
     padding: 16px;
     background-color: var(--primary);
     color: white;
@@ -64,7 +112,6 @@
     border-radius: var(--radius);
     font-size: 17px;
     font-weight: 600;
-    margin-bottom: 24px;
     box-shadow: 0 4px 12px rgba(10, 132, 255, 0.3);
 }
 
@@ -78,6 +125,7 @@ h3 {
     padding-left: 10px;
 }
 
+/* СПИСОК КОМНАТ */
 .scroll-area {
     flex-grow: 1;
     overflow-y: auto;
@@ -119,4 +167,10 @@ h3 {
     font-weight: 600;
     font-size: 15px !important;
     margin: 0 !important;
+}
+
+.join-btn.full {
+    background-color: #3A3A3C !important;
+    color: #666;
+    pointer-events: none;
 }

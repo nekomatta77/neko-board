@@ -2,7 +2,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 20px;
 }
 
 .secondary-btn {
@@ -19,10 +19,69 @@
     font-weight: bold;
 }
 
+/* СЕТКА ИГРОКОВ (Android) */
+.players-grid {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-bottom: 30px;
+}
+
+.player-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 70px;
+    position: relative;
+}
+
+.avatar-wrapper {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid #bb86fc;
+    padding: 2px;
+    margin-bottom: 5px;
+}
+
+.avatar-wrapper img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.player-name {
+    font-size: 12px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.host-badge {
+    position: absolute;
+    top: -5px;
+    right: 0;
+    font-size: 14px;
+    background: #121212;
+    border-radius: 50%;
+    padding: 2px;
+}
+
+/* ИГРОВОЕ ПОЛЕ */
 .board-area {
-    /* Пока пусто, здесь будет поле */
     flex-grow: 1;
     display: flex;
     justify-content: center;
     align-items: center;
+    background: #1e1e1e;
+    border-radius: 8px;
+}
+
+.waiting-text {
+    color: #888;
+    font-style: italic;
 }

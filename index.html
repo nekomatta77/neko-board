@@ -64,7 +64,17 @@
                 </button>
             </div>
             
-            <button id="create-game-btn" class="action-btn">➕ Создать комнату</button>
+            <div class="create-zone">
+                <div class="select-wrapper">
+                    <label>Игроков:</label>
+                    <select id="players-count-select">
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                    </select>
+                </div>
+                <button id="create-game-btn" class="action-btn">➕ Создать</button>
+            </div>
             
             <h3>Активные игры:</h3>
             <div id="rooms-list" class="scroll-area">
@@ -74,10 +84,16 @@
 
         <div id="game-screen" class="screen hidden">
             <div class="game-header">
-                <button id="leave-game-btn" class="secondary-btn">← Назад</button>
-                <span id="room-id-display">Комната #000</span>
+                <button id="leave-game-btn" class="secondary-btn">Выйти</button>
+                <span id="room-id-display">Комната</span>
             </div>
-            <div id="game-board" class="board-area"></div>
+            
+            <div class="players-grid" id="players-container">
+                </div>
+
+            <div id="game-board" class="board-area">
+                <div class="waiting-text">Ожидание игроков...</div>
+            </div>
         </div>
     </div>
 

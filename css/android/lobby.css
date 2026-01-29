@@ -1,3 +1,4 @@
+/* КРАСИВЫЙ ПРОФИЛЬ ИГРОКА (Android) */
 .profile-header {
     background-color: #1e1e1e;
     padding: 15px;
@@ -36,7 +37,7 @@
 
 .profile-status {
     font-size: 12px;
-    color: #03dac6; 
+    color: #03dac6; /* Teal color for online status */
     margin-top: 2px;
 }
 
@@ -59,8 +60,43 @@
     color: white;
 }
 
-.action-btn {
+/* ЗОНА СОЗДАНИЯ КОМНАТЫ */
+.create-zone {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.select-wrapper {
+    background-color: #2c2c2c;
+    border-radius: 4px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    border: 1px solid #bb86fc;
+    flex-grow: 1;
+}
+
+.select-wrapper label {
+    font-size: 12px;
+    color: #bbb;
+    margin-right: 5px;
+}
+
+select {
+    background: transparent;
+    color: white;
+    border: none;
+    font-size: 16px;
     width: 100%;
+    outline: none;
+    padding: 10px 0;
+}
+
+/* Кнопка создания */
+.action-btn {
+    width: auto;
+    flex-grow: 2;
     padding: 14px;
     background-color: #bb86fc;
     color: #000;
@@ -70,7 +106,6 @@
     font-weight: 700;
     text-transform: uppercase;
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    margin-bottom: 20px;
 }
 
 h3 {
@@ -79,6 +114,7 @@ h3 {
     color: #aaa;
 }
 
+/* СПИСОК КОМНАТ */
 .scroll-area {
     flex-grow: 1;
     overflow-y: auto;
@@ -99,7 +135,7 @@ h3 {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-left: 4px solid #bb86fc;
+    border-left: 4px solid #bb86fc; /* Акцент слева */
 }
 
 .room-info { display: flex; align-items: center; }
@@ -127,4 +163,12 @@ h3 {
 .join-btn:active {
     background-color: #bb86fc;
     color: black;
+}
+
+/* Стиль для полной комнаты */
+.join-btn.full {
+    background-color: #444;
+    color: #888;
+    border-color: #555;
+    pointer-events: none;
 }
