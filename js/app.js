@@ -1,4 +1,6 @@
-import { db, ref, set, push, onValue, update, remove, child, get, query, limitToLast, onChildAdded, off } from './firebase-config.js';
+import { db, ref, set, push, onValue, update, remove, child, get } from './firebase-config.js';
+// Импортируем логику чата
+import { startChat, stopChat } from './chat.js';
 
 // DOM Элементы
 const authScreen = document.getElementById('auth-screen');
@@ -17,15 +19,10 @@ const leaveGameBtn = document.getElementById('leave-game-btn');
 const roomIdDisplay = document.getElementById('room-id-display');
 const playersContainer = document.getElementById('players-container');
 
-// Чат
-const chatMessages = document.getElementById('chat-messages');
-const chatInput = document.getElementById('chat-input');
-const sendChatBtn = document.getElementById('send-chat-btn');
-
 // Аватар
 const currentAvatarImg = document.getElementById('current-avatar-img');
 const nextAvatarBtn = document.getElementById('next-avatar-btn');
-const prevAvatarBtn = document.getElementById('prev-avatar-btn'); // Новая кнопка
+const prevAvatarBtn = document.getElementById('prev-avatar-btn');
 
 // Уведомления
 const notificationContainer = document.getElementById('notification-container');
@@ -45,12 +42,10 @@ function showNotification(message, type = 'info') {
     
     notificationContainer.appendChild(notif);
 
-    // Анимация появления
     requestAnimationFrame(() => {
         notif.classList.add('show');
     });
 
-    // Удаление через 3 секунды
     setTimeout(() => {
         notif.classList.remove('show');
         setTimeout(() => notif.remove(), 300);
@@ -68,7 +63,6 @@ function changeAvatar(direction) {
     
     currentAvatarImg.src = `assets/avatars/ava${currentAvatarId}.png`;
     
-    // Анимация кнопок
     const btn = direction === 1 ? nextAvatarBtn : prevAvatarBtn;
     btn.style.transform = "scale(0.8)";
     setTimeout(() => btn.style.transform = "scale(1)", 150);
@@ -94,47 +88,6 @@ loginBtn.addEventListener('click', () => {
         showNotification('Пожалуйста, введите ник!', 'error');
     }
 });
-
-// --- ЧАТ КОМНАТЫ ---
-let roomChatRef = null;
-
-function initRoomChat(roomId) {
-    chatMessages.innerHTML = '<div class="chat-welcome">Вы вошли в чат комнаты</div>';
-    roomChatRef = query(ref(db, `rooms/${roomId}/chat`), limitToLast(50));
-    
-    onChildAdded(roomChatRef, (snapshot) => {
-        const msg = snapshot.val();
-        renderMessage(msg);
-    });
-}
-
-sendChatBtn.addEventListener('click', sendMessage);
-
-function sendMessage() {
-    if (!currentRoomId) return;
-    const text = chatInput.value.trim();
-    if (text) {
-        push(ref(db, `rooms/${currentRoomId}/chat`), {
-            user: currentUser,
-            text: text,
-            avatar: currentAvatarId
-        });
-        chatInput.value = '';
-    }
-}
-
-function renderMessage(msg) {
-    const el = document.createElement('div');
-    el.className = 'chat-msg';
-    const isMine = msg.user === currentUser;
-    
-    el.innerHTML = `
-        <span class="msg-author" style="color: ${isMine ? '#bb86fc' : '#03dac6'}">${msg.user}:</span>
-        <span class="msg-text">${msg.text}</span>
-    `;
-    chatMessages.appendChild(el);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
 
 // --- СОЗДАНИЕ КОМНАТЫ ---
 createGameBtn.addEventListener('click', () => {
@@ -250,7 +203,9 @@ function enterGameScreen(roomId) {
     showScreen(gameScreen);
     roomIdDisplay.textContent = `Комната`;
     subscribeToRoom(roomId);
-    initRoomChat(roomId);
+    
+    // ЗАПУСК ЧАТА (из нового файла)
+    startChat(roomId, currentUser, currentAvatarId);
 }
 
 function subscribeToRoom(roomId) {
@@ -259,7 +214,6 @@ function subscribeToRoom(roomId) {
     onValue(roomRef, (snapshot) => {
         const room = snapshot.val();
         if (!room) {
-            // Если комната удалена, а мы еще на экране игры
             if (currentRoomId === roomId) {
                 showNotification("Комната была закрыта хостом", "info");
                 handleLeave();
@@ -309,6 +263,7 @@ function renderPlayersList(playersObj) {
     });
 }
 
+// --- ВЫХОД ---
 leaveGameBtn.addEventListener('click', () => {
     if (currentRoomId) {
         const playerRef = ref(db, `rooms/${currentRoomId}/players/${myUserId}`);
@@ -327,10 +282,10 @@ leaveGameBtn.addEventListener('click', () => {
 
 function handleLeave() {
     currentRoomId = null;
-    if (roomChatRef) {
-        off(roomChatRef);
-        roomChatRef = null;
-    }
+    
+    // ОСТАНОВКА ЧАТА (из нового файла)
+    stopChat();
+    
     showScreen(lobbyScreen);
 }
 
