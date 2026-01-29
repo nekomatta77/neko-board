@@ -1,0 +1,122 @@
+.profile-header {
+    background-color: rgba(44, 44, 46, 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 16px;
+    border-radius: 20px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.profile-info {
+    display: flex;
+    align-items: center;
+}
+
+.profile-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px; 
+    margin-right: 16px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.profile-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.profile-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: white;
+}
+
+.profile-status {
+    font-size: 13px;
+    color: #30D158;
+    margin-top: 2px;
+    font-weight: 500;
+}
+
+.logout-btn {
+    background: rgba(255, 69, 58, 0.15);
+    border: none;
+    color: #FF453A;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.action-btn {
+    -webkit-appearance: none;
+    width: 100%;
+    padding: 16px;
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 12px rgba(10, 132, 255, 0.3);
+}
+
+h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding-left: 10px;
+}
+
+.scroll-area {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.empty-state {
+    text-align: center;
+    color: #888;
+    margin-top: 40px;
+}
+
+.room-card {
+    background-color: #2C2C2E;
+    padding: 16px;
+    border-radius: 18px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.room-info { display: flex; align-items: center; }
+.room-text { display: flex; flex-direction: column; }
+
+.room-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    margin-right: 14px;
+}
+
+.join-btn {
+    width: auto !important;
+    padding: 8px 18px !important;
+    background-color: #30D158 !important; 
+    border: none;
+    border-radius: 20px;
+    color: white;
+    font-weight: 600;
+    font-size: 15px !important;
+    margin: 0 !important;
+}

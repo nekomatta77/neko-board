@@ -13,36 +13,68 @@ const roomsList = document.getElementById('rooms-list');
 const leaveGameBtn = document.getElementById('leave-game-btn');
 const roomIdDisplay = document.getElementById('room-id-display');
 
+// Аватар
+const currentAvatarImg = document.getElementById('current-avatar-img');
+const nextAvatarBtn = document.getElementById('next-avatar-btn');
+
 // Состояние
 let currentUser = null;
+let currentAvatarId = 1; 
 let currentRoomId = null;
 
-// --- АВТОРИЗАЦИЯ ---
+// --- ЛОГИКА АВАТАРА ---
+nextAvatarBtn.addEventListener('click', nextAvatar);
+
+function nextAvatar() {
+    currentAvatarId++;
+    if (currentAvatarId > 20) {
+        currentAvatarId = 1;
+    }
+    currentAvatarImg.src = `assets/avatars/ava${currentAvatarId}.png`;
+    
+    nextAvatarBtn.style.transform = "scale(0.9)";
+    setTimeout(() => {
+        nextAvatarBtn.style.transform = "scale(1)";
+    }, 150);
+}
+
+// --- АВТОРИЗАЦИЯ И ПРОФИЛЬ ---
 loginBtn.addEventListener('click', () => {
     const username = usernameInput.value.trim();
     if (username) {
         currentUser = username;
-        userDisplay.textContent = `Игрок: ${currentUser}`;
+        
+        // Вставляем красивый профиль в лобби
+        userDisplay.innerHTML = `
+            <div class="profile-info">
+                <img src="assets/avatars/ava${currentAvatarId}.png" class="profile-avatar">
+                <div class="profile-text">
+                    <span class="profile-name">${currentUser}</span>
+                    <span class="profile-status">● Online</span>
+                </div>
+            </div>
+        `;
+        
         showScreen(lobbyScreen);
-        loadRooms(); // Запускаем прослушку списка комнат
+        loadRooms(); 
     } else {
         alert('Пожалуйста, введите ник!');
     }
 });
 
-// --- ЛОГИКА ЛОББИ ---
-
-// 1. Создание комнаты
+// --- ЛОББИ ---
 createGameBtn.addEventListener('click', () => {
     const roomsRef = ref(db, 'rooms');
-    const newRoomRef = push(roomsRef); // Генерирует уникальный ключ
+    const newRoomRef = push(roomsRef);
     
     const roomData = {
         host: currentUser,
+        hostAvatar: currentAvatarId, 
         player2: "",
-        status: "waiting", // waiting, playing
-        board: [0,0,0,0,0,0,0,0,0], // Для крестиков-ноликов (пусто)
-        turn: currentUser // Кто ходит первым
+        player2Avatar: null,
+        status: "waiting", 
+        board: [0,0,0,0,0,0,0,0,0], 
+        turn: currentUser 
     };
 
     set(newRoomRef, roomData).then(() => {
@@ -51,12 +83,11 @@ createGameBtn.addEventListener('click', () => {
     });
 });
 
-// 2. Отображение списка комнат (слушаем Firebase)
 function loadRooms() {
     const roomsRef = ref(db, 'rooms');
     
     onValue(roomsRef, (snapshot) => {
-        roomsList.innerHTML = ''; // Очищаем список перед обновлением
+        roomsList.innerHTML = ''; 
         const data = snapshot.val();
 
         if (!data) {
@@ -64,37 +95,36 @@ function loadRooms() {
             return;
         }
 
-        // Пробегаем по всем комнатам
         Object.keys(data).forEach(key => {
             const room = data[key];
-            
-            // Показываем только комнаты, где ждут игрока
             if (room.status === "waiting") {
                 const roomEl = document.createElement('div');
                 roomEl.className = 'room-card';
+                const hostAva = room.hostAvatar || 1; 
                 roomEl.innerHTML = `
-                    <span>🎮 Комната игрока <b>${room.host}</b></span>
+                    <div class="room-info">
+                        <img src="assets/avatars/ava${hostAva}.png" class="room-avatar">
+                        <div class="room-text">
+                            <span><b>${room.host}</b></span>
+                            <small>ждет игрока</small>
+                        </div>
+                    </div>
                     <button class="join-btn">Войти</button>
                 `;
-                
-                // Обработка клика "Войти"
                 roomEl.querySelector('.join-btn').addEventListener('click', () => {
                     joinRoom(key);
                 });
-
                 roomsList.appendChild(roomEl);
             }
         });
     });
 }
 
-// 3. Присоединение к комнате
 function joinRoom(roomId) {
     const roomRef = ref(db, `rooms/${roomId}`);
-    
-    // Обновляем данные комнаты: добавляем второго игрока и меняем статус
     update(roomRef, {
         player2: currentUser,
+        player2Avatar: currentAvatarId,
         status: "playing"
     }).then(() => {
         currentRoomId = roomId;
@@ -104,28 +134,19 @@ function joinRoom(roomId) {
     });
 }
 
-// --- ЭКРАН ИГРЫ ---
-
 function enterGameScreen(roomId, status) {
     showScreen(gameScreen);
     roomIdDisplay.textContent = (status === 'waiting') ? "Ожидание игрока..." : "Игра началась!";
-    
-    // Здесь мы позже добавим слушатель изменений в самой игре
 }
 
 leaveGameBtn.addEventListener('click', () => {
-    // Если вышел хост - удаляем комнату, если гость - просто выходим (пока упрощенно)
     if (currentRoomId) {
-        // Простая логика: удаляем комнату при выходе
-        // В будущем улучшим (сдаться и т.д.)
         remove(ref(db, `rooms/${currentRoomId}`));
         currentRoomId = null;
     }
     showScreen(lobbyScreen);
 });
 
-
-// Утилита переключения экранов
 function showScreen(screen) {
     authScreen.classList.add('hidden');
     lobbyScreen.classList.add('hidden');

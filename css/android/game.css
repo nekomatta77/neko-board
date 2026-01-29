@@ -1,0 +1,28 @@
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.secondary-btn {
+    background-color: #cf6679;
+    color: #000;
+    border: none;
+    border-radius: 4px;
+    width: auto;
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+#room-id-display {
+    font-weight: bold;
+}
+
+.board-area {
+    /* Пока пусто, здесь будет поле */
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}

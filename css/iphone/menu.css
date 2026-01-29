@@ -1,0 +1,88 @@
+.card {
+    background-color: var(--card);
+    padding: 24px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+/* Аватар */
+.avatar-selection {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 24px;
+    position: relative;
+    width: 100%;
+}
+
+.avatar-frame {
+    width: 110px;
+    height: 110px;
+    border-radius: 35px; /* Squircle */
+    background: #2C2C2E;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+
+.avatar-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.refresh-btn {
+    position: absolute;
+    bottom: -5px;
+    right: 25%;
+    width: 40px !important;
+    height: 40px;
+    border-radius: 50%;
+    padding: 0 !important;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #323232 !important; 
+    border: 1px solid #444 !important;
+    color: var(--primary);
+    backdrop-filter: blur(5px);
+    transition: transform 0.1s ease;
+    margin: 0 !important;
+}
+
+/* Формы */
+input {
+    -webkit-appearance: none;
+    width: 100%;
+    padding: 16px;
+    margin-bottom: 16px;
+    background-color: #2C2C2E;
+    border: none;
+    border-radius: var(--radius);
+    color: white;
+    font-size: 17px;
+    box-sizing: border-box;
+}
+input:focus { outline: 2px solid var(--primary); }
+
+button#login-btn {
+    -webkit-appearance: none;
+    width: 100%;
+    padding: 16px;
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 17px;
+    font-weight: 600;
+}
+button:active { opacity: 0.7; }
