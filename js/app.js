@@ -2,7 +2,7 @@ import { db, ref, set, push, onValue, update, remove, child, get } from './fireb
 // Импортируем логику чата
 import { startChat, stopChat } from './chat.js';
 
-// DOM Элементы
+// --- DOM ЭЛЕМЕНТЫ ---
 const authScreen = document.getElementById('auth-screen');
 const lobbyScreen = document.getElementById('lobby-screen');
 const gameScreen = document.getElementById('game-screen');
@@ -27,12 +27,14 @@ const prevAvatarBtn = document.getElementById('prev-avatar-btn');
 // Уведомления
 const notificationContainer = document.getElementById('notification-container');
 
-// Состояние
+// --- СОСТОЯНИЕ ---
 let currentUser = null;
 let currentAvatarId = 1;
 let myUserId = 'user_' + Math.random().toString(36).substr(2, 9);
 let currentRoomId = null;
 let amIHost = false;
+
+let activeGameCleanup = null; // Функция очистки текущей игры
 
 // --- УВЕДОМЛЕНИЯ ---
 function showNotification(message, type = 'info') {
@@ -204,7 +206,7 @@ function enterGameScreen(roomId) {
     roomIdDisplay.textContent = `Комната`;
     subscribeToRoom(roomId);
     
-    // ЗАПУСК ЧАТА (из нового файла)
+    // Запуск чата
     startChat(roomId, currentUser, currentAvatarId);
 }
 
@@ -213,6 +215,8 @@ function subscribeToRoom(roomId) {
     
     onValue(roomRef, (snapshot) => {
         const room = snapshot.val();
+        
+        // 1. Если комната удалена
         if (!room) {
             if (currentRoomId === roomId) {
                 showNotification("Комната была закрыта хостом", "info");
@@ -221,26 +225,44 @@ function subscribeToRoom(roomId) {
             return;
         }
 
+        // 2. Обновляем статус хоста (на случай сбоев)
         if (room.players && room.players[myUserId]) {
             amIHost = room.players[myUserId].isHost;
         }
 
+        // 3. Рисуем игроков
         renderPlayersList(room.players);
 
+        // 4. ПРОВЕРКА СТАТУСА: ИГРА ИДЕТ?
+        if (room.status && room.status.startsWith('playing_')) {
+            const gameName = room.status.split('_')[1]; // Получаем 'tictac'
+            loadGameModule(gameName);
+            return; // Выходим, чтобы не рисовать меню ожидания
+        }
+
+        // 5. Если игра НЕ идет, показываем лобби/меню
         const count = Object.keys(room.players).length;
-        const statusText = document.querySelector('.waiting-text');
+        const boardArea = document.getElementById('game-board');
         
-        if (statusText) {
-            if (count >= room.maxPlayers) {
-                if (amIHost) {
-                    statusText.innerHTML = `<span style="color:#03dac6">Вы Хост! Скоро здесь будет выбор игры...</span>`;
-                } else {
-                    statusText.textContent = "Ждем выбора игры хостом...";
-                    statusText.style.color = "#888";
+        // Если поле занято игрой, но статус сменился на waiting (рестарт всей комнаты)
+        if (boardArea.getAttribute('data-game')) {
+            handleLeaveGameOnly(); // Чистим игру, возвращаем меню
+        }
+
+        if (count >= room.maxPlayers) {
+            // Комната полная
+            if (amIHost) {
+                // Хост видит кнопки выбора
+                if (!document.getElementById('game-selector')) {
+                    renderGameMenu(boardArea);
                 }
             } else {
-                statusText.textContent = `Ожидание... (${count}/${room.maxPlayers})`;
+                // Гость ждет
+                boardArea.innerHTML = '<div class="waiting-text" style="color:#888">Ждем выбора игры хостом...</div>';
             }
+        } else {
+            // Ожидание игроков
+            boardArea.innerHTML = `<div class="waiting-text">Ожидание... (${count}/${room.maxPlayers})</div>`;
         }
     });
 }
@@ -263,6 +285,73 @@ function renderPlayersList(playersObj) {
     });
 }
 
+// --- МЕНЮ ВЫБОРА ИГР (Только для хоста) ---
+function renderGameMenu(container) {
+    container.innerHTML = `
+        <div id="game-selector" class="game-selector">
+            <h3>Выберите игру:</h3>
+            <div class="games-list">
+                <button class="game-option-btn" onclick="startGameTrigger('tictac')">
+                    ❌⭕ Крестики-Нолики
+                </button>
+                <button class="game-option-btn" style="opacity:0.5; cursor:not-allowed">
+                    🃏 Дурак (Скоро)
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Глобальная функция для вызова из HTML (onclick)
+window.startGameTrigger = function(gameName) {
+    if (!currentRoomId || !amIHost) return;
+    
+    // Меняем статус в БД -> у всех запустится loadGameModule
+    update(ref(db, `rooms/${currentRoomId}`), {
+        status: `playing_${gameName}`
+    });
+}
+
+// --- ДИНАМИЧЕСКАЯ ЗАГРУЗКА ИГРЫ ---
+async function loadGameModule(gameName) {
+    const boardArea = document.getElementById('game-board');
+    
+    // Если эта игра уже загружена, ничего не делаем
+    if (boardArea.getAttribute('data-game') === gameName) return;
+    
+    // Очищаем поле
+    boardArea.innerHTML = '<div class="waiting-text">Загрузка игры...</div>';
+    boardArea.setAttribute('data-game', gameName);
+
+    // 1. Определяем платформу
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const cssFile = isIos ? 'iphone.css' : 'android.css';
+    
+    // 2. Подключаем CSS
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = `games/${gameName}/${cssFile}`;
+    link.id = 'game-css';
+    document.head.appendChild(link);
+
+    // 3. Импортируем JS модуля
+    try {
+        const gameModule = await import(`../games/${gameName}/${gameName}.js`);
+        
+        // Очищаем предыдущую логику если была
+        if (activeGameCleanup) activeGameCleanup();
+        
+        // Запускаем игру
+        gameModule.initGame(boardArea, currentRoomId, myUserId, amIHost);
+        activeGameCleanup = gameModule.cleanupGame; // Сохраняем функцию очистки
+
+    } catch (error) {
+        console.error("Ошибка загрузки:", error);
+        boardArea.innerHTML = '<div class="waiting-text error">Ошибка загрузки файла игры</div>';
+        showNotification("Не удалось загрузить игру", "error");
+    }
+}
+
 // --- ВЫХОД ---
 leaveGameBtn.addEventListener('click', () => {
     if (currentRoomId) {
@@ -280,13 +369,29 @@ leaveGameBtn.addEventListener('click', () => {
     handleLeave();
 });
 
+// Полный выход в лобби
 function handleLeave() {
     currentRoomId = null;
-    
-    // ОСТАНОВКА ЧАТА (из нового файла)
-    stopChat();
-    
+    stopChat(); // Останавливаем чат
+    handleLeaveGameOnly(); // Чистим игру
     showScreen(lobbyScreen);
+}
+
+// Очистка только игрового поля (без выхода из комнаты)
+function handleLeaveGameOnly() {
+    // Удаляем CSS игры
+    const gameCss = document.getElementById('game-css');
+    if (gameCss) gameCss.remove();
+    
+    // Вызываем cleanup самой игры
+    if (activeGameCleanup) {
+        activeGameCleanup();
+        activeGameCleanup = null;
+    }
+    
+    const board = document.getElementById('game-board');
+    board.removeAttribute('data-game');
+    board.innerHTML = '';
 }
 
 function showScreen(screen) {

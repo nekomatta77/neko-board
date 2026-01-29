@@ -1,0 +1,61 @@
+#tictac-game {
+    width: 100%;
+    max-width: 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.status-bar {
+    font-size: 20px;
+    margin-bottom: 24px;
+    font-weight: 600;
+    color: #fff;
+    text-align: center;
+}
+
+.status-bar.win { color: #30D158; }
+.status-bar.lose { color: #FF453A; }
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: rgba(255,255,255,0.05);
+    padding: 12px;
+    border-radius: 24px;
+    backdrop-filter: blur(10px);
+}
+
+.cell {
+    background-color: rgba(255,255,255,0.1);
+    border-radius: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 48px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.cell:active {
+    background-color: rgba(255,255,255,0.2);
+}
+
+/* Цвета фигур */
+.cell.X { color: #FF2D55; }
+.cell.O { color: #0A84FF; }
+
+#restart-btn {
+    margin-top: 24px;
+    padding: 12px 24px;
+    background: #0A84FF;
+    border: none;
+    border-radius: 20px;
+    font-weight: 600;
+    color: white;
+    font-size: 16px;
+}
