@@ -1,11 +1,12 @@
 /* IPHONE STYLE */
 :root {
-    --primary: #0A84FF; /* iOS Blue */
+    --primary: #0A84FF;
     --bg: #000000;
     --card: #1C1C1E;
     --text: #ffffff;
     --radius: 12px;
     --gradient-text: linear-gradient(45deg, #FF9500, #FF2D55);
+    --brand-color: #FF2D55;
 }
 
 body {
@@ -15,7 +16,6 @@ body {
     margin: 0;
     padding: 0;
     height: 100vh;
-    /* Учет челки и home bar */
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     display: flex;
@@ -31,7 +31,6 @@ body {
     box-sizing: border-box;
 }
 
-/* Заголовки и Лого */
 header h1 {
     font-size: 32px;
     font-weight: 800;
@@ -41,35 +40,49 @@ header h1 {
     align-items: center;
 }
 
-/* Настройки SVG котика для iPhone (Line Art) */
 .cat-logo {
-    height: 42px; /* Чуть крупнее для iOS */
+    height: 52px;
     width: auto;
     margin-right: 12px;
-    stroke: #FF2D55; /* Розовый акцент контура */
-    fill: none;      /* Без заливки */
+    fill: var(--brand-color);
 }
 
-/* Градиент применяется только к тексту */
 header h1 span {
     background: var(--gradient-text);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
-
 h2 {
     font-size: 22px;
     font-weight: 600;
 }
 
-/* Карточки и инпуты */
 .card {
     background-color: var(--card);
     padding: 24px;
     border-radius: 20px;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
+}
+
+/* Элемент списка комнат iOS */
+.room-card {
+    background-color: #2C2C2E;
+    padding: 16px;
+    border-radius: 16px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.join-btn {
+    width: auto !important;
+    padding: 10px 20px !important;
+    font-size: 15px !important;
+    margin: 0 !important;
+    background-color: #30D158 !important; /* Зеленая кнопка iOS для действий */
 }
 
 .hidden {
@@ -82,7 +95,6 @@ h2 {
     flex-direction: column;
 }
 
-/* iOS Reset для input */
 input {
     -webkit-appearance: none;
     width: 100%;
@@ -100,7 +112,6 @@ input:focus {
     outline: 2px solid var(--primary);
 }
 
-/* Кнопки iOS style */
 button {
     -webkit-appearance: none;
     width: 100%;
@@ -135,7 +146,6 @@ button:active {
     border-radius: 20px;
 }
 
-/* Лобби */
 .user-bar {
     display: flex;
     justify-content: space-between;
