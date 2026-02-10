@@ -20,40 +20,47 @@ function loadPlatformStyles() {
         link.href = `css/${currentPlatform}/${file}.css`;
     });
 
-    // Вставляем стили для напоминания о повороте экрана (только мобильные)
     if (isMobile) {
-        const style = document.createElement('style');
-        style.textContent = `
-            #orientation-warning {
-                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background: #111; z-index: 100000;
-                display: none; flex-direction: column; align-items: center; justify-content: center;
-                color: white; text-align: center;
-            }
-            #orientation-warning img { width: 80px; margin-bottom: 20px; animation: rotate-phone 2s infinite ease-in-out; }
-            @keyframes rotate-phone { 0% { transform: rotate(0deg); } 50% { transform: rotate(90deg); } 100% { transform: rotate(0deg); } }
-        `;
-        document.head.appendChild(style);
+        let style = document.getElementById('orientation-style');
+        if (!style) {
+            style = document.createElement('style');
+            style.id = 'orientation-style';
+            style.textContent = `
+                #orientation-warning {
+                    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                    background: #111; z-index: 100000;
+                    display: none; flex-direction: column; align-items: center; justify-content: center;
+                    color: white; text-align: center;
+                }
+                #orientation-warning img { width: 80px; margin-bottom: 20px; animation: rotate-phone 2s infinite ease-in-out; }
+                @keyframes rotate-phone { 0% { transform: rotate(0deg); } 50% { transform: rotate(90deg); } 100% { transform: rotate(0deg); } }
+            `;
+            document.head.appendChild(style);
 
-        const warningDiv = document.createElement('div');
-        warningDiv.id = 'orientation-warning';
-        warningDiv.innerHTML = `
-            <div style="font-size:40px;">📱</div>
-            <h3>Пожалуйста, переверните устройство</h3>
-            <p>Игра работает в горизонтальном режиме</p>
-        `;
-        document.body.appendChild(warningDiv);
+            const warningDiv = document.createElement('div');
+            warningDiv.id = 'orientation-warning';
+            warningDiv.innerHTML = `
+                <div style="font-size:40px;">📱</div>
+                <h3>Пожалуйста, переверните устройство</h3>
+                <p>Режим "Brawl" работает горизонтально</p>
+            `;
+            document.body.appendChild(warningDiv);
+        }
 
         function checkOrientation() {
             const warning = document.getElementById('orientation-warning');
-            if (window.innerHeight > window.innerWidth) {
+            const isInGame = document.body.classList.contains('in-game');
+            const isPortrait = window.innerHeight > window.innerWidth;
+
+            if (isInGame && isPortrait) {
                 warning.style.display = 'flex';
             } else {
                 warning.style.display = 'none';
             }
         }
         window.addEventListener('resize', checkOrientation);
-        checkOrientation();
+        const observer = new MutationObserver(checkOrientation);
+        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     }
 }
 loadPlatformStyles();
@@ -345,6 +352,10 @@ function renderPlayersList(playersObj) {
 function renderGameControls(room) {
     const selectionArea = document.getElementById('game-selection-area');
     const players = room.players || {};
+    
+    // ИСПРАВЛЕНИЕ ОШИБКИ: Проверяем, существует ли мой игрок
+    if (!players[myUserId]) return;
+
     const allReady = Object.values(players).every(p => p.isReady);
 
     if (amIHost) {
@@ -362,7 +373,8 @@ function renderGameControls(room) {
         let startBtnState = (room.selectedGame && allReady) ? '' : 'disabled';
         let startBtnText = !room.selectedGame ? "Выберите игру" : (!allReady ? "Ждем готовности..." : "НАЧАТЬ ИГРУ");
         
-        const myReady = players[myUserId].isReady;
+        // БЕЗОПАСНЫЙ ДОСТУП к isReady
+        const myReady = players[myUserId]?.isReady;
         const readyBtnHtml = `
             <button onclick="toggleReady()" class="ready-btn ${myReady ? 'is-ready' : ''}">
                 ${myReady ? 'ОТМЕНА' : 'Я ГОТОВ'}
@@ -383,7 +395,8 @@ function renderGameControls(room) {
         }, 0);
 
     } else {
-        const myReady = players[myUserId].isReady;
+        // БЕЗОПАСНЫЙ ДОСТУП
+        const myReady = players[myUserId]?.isReady;
         let statusText = "Хост выбирает игру...";
         if (room.selectedGame === 'tictac') statusText = "Выбрано: Крестики-Нолики";
         if (room.selectedGame === 'brawl') statusText = "Выбрано: Бравл";
@@ -451,15 +464,19 @@ async function loadGameModule(gameName) {
         const gameModule = await import(`../games/${gameName}/${gameName}.js`);
         if (activeGameCleanup) activeGameCleanup();
         
-        get(ref(db, `rooms/${currentRoomId}/players`)).then(snap => {
-            const playersData = snap.val();
-            gameModule.initGame(fullscreenMount, currentRoomId, myUserId, amIHost, playersData);
-            activeGameCleanup = gameModule.cleanupGame;
-        });
+        // Ждем загрузки данных, чтобы не было ошибки
+        const snap = await get(ref(db, `rooms/${currentRoomId}/players`));
+        const playersData = snap.val();
+
+        if (!playersData) throw new Error("Нет данных игроков!");
+
+        gameModule.initGame(fullscreenMount, currentRoomId, myUserId, amIHost, playersData);
+        activeGameCleanup = gameModule.cleanupGame;
 
     } catch (error) {
-        console.error(error);
-        fullscreenMount.innerHTML = '<div class="waiting-text error">Ошибка загрузки игры</div>';
+        console.error("Game Load Error:", error);
+        fullscreenMount.innerHTML = `<div class="waiting-text error">Ошибка: ${error.message}</div>`;
+        document.body.classList.remove('in-game');
     }
 }
 
@@ -470,9 +487,11 @@ closeFullscreenBtn.addEventListener('click', () => {
             update(ref(db, `rooms/${currentRoomId}`), updates);
             get(ref(db, `rooms/${currentRoomId}/players`)).then(snap => {
                  const p = snap.val();
-                 Object.keys(p).forEach(k => {
-                     update(ref(db, `rooms/${currentRoomId}/players/${k}`), { isReady: false });
-                 });
+                 if (p) {
+                     Object.keys(p).forEach(k => {
+                         update(ref(db, `rooms/${currentRoomId}/players/${k}`), { isReady: false });
+                     });
+                 }
             });
             closeFullscreenGame();
         }
