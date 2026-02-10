@@ -195,4 +195,28 @@ h3 {
     z-index: 10;
     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
-
+/* Добавь это в конец файла */
+.ready-btn {
+    width: 100%;
+    padding: 16px;
+    margin-bottom: 10px;
+    background: #333;
+    color: #ccc;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 800;
+    text-transform: uppercase;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    transition: transform 0.1s;
+}
+.ready-btn:active {
+    transform: scale(0.98);
+}
+.ready-btn.is-ready {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    color: white;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.5);
+}
+.status-ready { color: #4CAF50; font-weight: bold; }
+.status-waiting { color: #999; }

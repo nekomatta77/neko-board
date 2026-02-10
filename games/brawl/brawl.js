@@ -1,105 +1,395 @@
-import { db, ref, update, onValue, off, set, remove } from '../../js/firebase-config.js';
-import * as THREE from 'https://esm.sh/three@0.160.0';
-import { FBXLoader } from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/FBXLoader';
+import { db, ref, update, onValue, off, set, remove, get } from '../../js/firebase-config.js';
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { FBXLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/FBXLoader.js';
 
-// --- НАСТРОЙКИ ФИЗИКИ ---
-const GRAVITY = -30;    // Сила притяжения (чем меньше число, тем плавнее падение)
-const JUMP_FORCE = 12;  // Сила прыжка (высота)
-const SPEED = 6;        // Скорость бега
+// --- НАСТРОЙКИ ---
+const SPAWN_POINTS = [
+    { x: 0, z: 0 },
+    { x: 5, z: 5 },
+    { x: -5, z: -5 },
+    { x: 5, z: -5 },
+    { x: -5, z: 5 }
+];
+const GRAVITY = -30;
+const JUMP_FORCE = 12;
+const SPEED = 6;
+const SYNC_RATE = 50; 
 
-// Глобальные переменные
+// --- НАСТРОЙКИ КАМЕРЫ (CLOSE ACTION VIEW) ---
+// Камера стала ближе и чуть ниже для погружения
+const CAM_DISTANCE = 4.0;  // Было 6.0
+const CAM_HEIGHT = 2.5;    // Было 3.5
+const LOOK_OFFSET_Y = 1.8; // Смотрим в район плеч
+
 let scene, camera, renderer, clock;
-let myPlayerModel; 
-let mixer; 
-let actions = { idle: null, run: null, jump: null, punch: null }; 
+let myPlayerModel, mixer;
+let otherPlayers = {}; 
+let actions = {}; 
 let activeAction = null; 
-let containerEl;
 let joystick = { x: 0, y: 0 };
 let keys = { w: false, a: false, s: false, d: false, space: false };
+let isGrounded = true, verticalVelocity = 0, isPunching = false;
+let mySpawnIndex = 0;
+let gameState = 'selecting';
 
-// Состояние физики
-let verticalVelocity = 0; // Текущая скорость вверх/вниз
-let isGrounded = true;    // Стоим ли мы на земле?
-let isPunching = false;
+let cameraAngle = Math.PI; // Старт спиной к камере
+
+// Ссылки Firebase
+let roomRef, myPlayerRef;
+let unsubscribePlayers = null;
+let syncInterval = null;
 
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || navigator.maxTouchPoints > 0;
 
-export function initGame(container, _roomId, _userId, isHost) {
-    containerEl = container;
-    clock = new THREE.Clock(); 
+// --- СТИЛИ ---
+function injectStyles() {
+    const styleId = 'brawl-game-styles';
+    if (document.getElementById(styleId)) return;
 
-    const startScreenHTML = isMobile ? `<div id="start-screen"><button id="fullscreen-btn">НАЧАТЬ ⚔️</button></div>` : '';
-    const mobileActionsHTML = isMobile ? `
-        <div id="mobile-actions">
-            <button id="btn-jump">🦘</button>
-            <button id="btn-punch">🥊</button>
-        </div>` : `<div id="pc-controls-hint">WASD-Бег | SPACE-Прыжок | ЛКМ-Удар</div>`;
+    const css = `
+        #brawl-ui {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            font-family: 'Segoe UI', sans-serif;
+            user-select: none;
+            overflow: hidden;
+        }
+        #brawl-ui > * { pointer-events: auto; }
 
-    container.innerHTML = `
-        <div id="rotate-warning"><div class="rotate-icon">📱 ➔ 📺</div><p>Поверни телефон!</p></div>
-        <div id="brawl-container">
-            ${startScreenHTML}
-            <div id="game-ui">
-                <div id="custom-exit-btn">✕</div>
-                <div id="loading-text">Загрузка физики...</div>
-                <div id="joystick-zone"><div id="joystick-nub"></div></div>
-                ${mobileActionsHTML}
-            </div>
-        </div>
+        /* ЭКРАН ВЫБОРА */
+        #char-select-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 10, 12, 0.98);
+            z-index: 20;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            color: white;
+        }
+        .chars-grid { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; }
+        .char-option {
+            width: 140px; height: 140px; border-radius: 20px;
+            border: 2px solid #333; background: #1a1a1a;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; overflow: hidden; position: relative;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .char-option img { width: 80%; height: 80%; object-fit: contain; transition: 0.3s; }
+        .char-option span { 
+            margin-top: 10px; font-weight: bold; color: #888; text-transform: uppercase; font-size: 12px; 
+        }
+        .char-option:hover { transform: translateY(-5px); border-color: #666; }
+        .char-option.selected { 
+            border-color: #00E676; 
+            box-shadow: 0 0 30px rgba(0, 230, 118, 0.3);
+            background: #112;
+        }
+        .char-option.selected span { color: #00E676; }
+        
+        #loading-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 15;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: #fff;
+        }
+        .loader {
+            width: 50px; height: 50px; border: 4px solid #222;
+            border-top: 4px solid #00E676; border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin-bottom: 20px;
+        }
+
+        /* ИНТЕРФЕЙС (ТОЛЬКО ДЛЯ МОБИЛ) */
+        #custom-exit-btn {
+            position: absolute; top: 20px; right: 20px;
+            width: 40px; height: 40px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%; border: 1px solid rgba(255,255,255,0.1);
+            color: white; font-size: 18px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; pointer-events: auto;
+            z-index: 100; transition: 0.2s;
+        }
+        #custom-exit-btn:hover { background: rgba(200, 50, 50, 0.8); border-color: red; }
+
+        #joystick-zone {
+            position: absolute; bottom: 50px; left: 50px;
+            width: 120px; height: 120px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%; touch-action: none;
+        }
+        #joystick-nub {
+            position: absolute; top: 50%; left: 50%;
+            width: 50px; height: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%; transform: translate(-50%, -50%);
+            backdrop-filter: blur(5px);
+        }
+        #mobile-actions {
+            position: absolute; bottom: 50px; right: 50px;
+            display: flex; gap: 20px;
+        }
+        #mobile-actions button {
+            width: 70px; height: 70px; border-radius: 50%; border: none;
+            background: rgba(255, 255, 255, 0.1); font-size: 28px; color: white;
+            backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1);
+        }
+        #mobile-actions button:active { background: rgba(255,255,255,0.3); }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
     `;
-
-    setupUI();
-    initThreeJS();
-    setupControls();
-    animate();
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = css;
+    document.head.appendChild(style);
 }
 
-function setupUI() {
+// --- INIT ---
+export function initGame(container, roomId, userId, isHost, playersList) {
+    injectStyles();
+
+    const playerIds = Object.keys(playersList).sort();
+    mySpawnIndex = playerIds.indexOf(userId);
+    if (mySpawnIndex === -1) mySpawnIndex = 0;
+
+    roomRef = ref(db, `rooms/${roomId}/brawl`);
+    myPlayerRef = ref(db, `rooms/${roomId}/brawl/players/${userId}`);
+
+    set(myPlayerRef, {
+        status: 'selecting',
+        name: playersList[userId].name,
+        char: null,
+        x: 0, y: -100, z: 0,
+        rotation: 0,
+        anim: 'idle'
+    });
+
+    // Формируем HUD. На ПК он будет пустой (кроме скрытых системных штук)
+    let hudHTML = '';
+    
     if (isMobile) {
-        document.getElementById('fullscreen-btn')?.addEventListener('click', () => {
-            const el = document.documentElement;
-            if (el.requestFullscreen) el.requestFullscreen();
-            else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-            document.getElementById('start-screen').style.display = 'none';
-        });
-        document.getElementById('btn-jump')?.addEventListener('touchstart', (e) => { e.preventDefault(); triggerJump(); });
-        document.getElementById('btn-punch')?.addEventListener('touchstart', (e) => { e.preventDefault(); triggerPunch(); });
+        hudHTML = `
+             <div id="custom-exit-btn" title="Выйти">✕</div>
+             <div id="joystick-zone"><div id="joystick-nub"></div></div>
+             <div id="mobile-actions">
+                 <button id="btn-jump">🦘</button>
+                 <button id="btn-punch">🥊</button>
+             </div>
+        `;
+    } 
+    // На ПК ничего не добавляем в HUD, чтобы был чистый экран.
+
+    container.innerHTML = `
+        <div id="brawl-ui">
+            <div id="char-select-screen">
+                <h2 style="font-weight:300; letter-spacing:2px; margin-bottom:40px;">ВЫБЕРИТЕ БОЙЦА</h2>
+                <div class="chars-grid">
+                    <div class="char-option" onclick="window.selectChar('cock')">
+                        <img src="assets/models/cock/texture.png">
+                        <span>Петух</span>
+                    </div>
+                    <div class="char-option disabled" style="opacity:0.3; cursor:default">
+                        <div style="font-size:40px; color:#555">?</div>
+                        <span>Скоро</span>
+                    </div>
+                </div>
+                <div id="status-wait-text" style="margin-top:30px;color:#666; font-size:14px">Ожидание игроков...</div>
+            </div>
+
+            <div id="loading-overlay" class="hidden">
+                <div class="loader"></div>
+                <div style="font-weight:300; letter-spacing:1px">ЗАГРУЗКА АРЕНЫ</div>
+            </div>
+
+            <div id="game-hud" class="hidden">
+                 ${hudHTML}
+            </div>
+        </div>
+        <div id="three-container"></div>
+    `;
+
+    // Вешаем обработчик на кнопку выхода (только если она есть, т.е. на мобилах)
+    const exitBtn = document.getElementById('custom-exit-btn');
+    if (exitBtn) {
+        exitBtn.onclick = (e) => {
+            e.stopPropagation();
+            document.getElementById('close-fullscreen-btn')?.click();
+        };
     }
-    document.getElementById('custom-exit-btn').addEventListener('click', () => {
-        if (document.exitFullscreen) document.exitFullscreen();
-        document.getElementById('close-fullscreen-btn')?.click();
+
+    window.selectChar = (charId) => {
+        const options = document.querySelectorAll('.char-option');
+        options.forEach(el => el.classList.remove('selected'));
+        event.currentTarget.classList.add('selected');
+        update(myPlayerRef, { char: charId, status: 'selected' });
+        
+        const txt = document.getElementById('status-wait-text');
+        txt.innerText = "ГОТОВО. ОЖИДАНИЕ ОСТАЛЬНЫХ...";
+        txt.style.color = "#00E676";
+        document.querySelector('.chars-grid').style.pointerEvents = 'none';
+    };
+
+    unsubscribePlayers = onValue(ref(db, `rooms/${roomId}/brawl/players`), (snap) => {
+        const players = snap.val() || {};
+        const allIds = Object.keys(players);
+        const totalExpected = Object.keys(playersList).length;
+
+        const allSelected = allIds.length === totalExpected && Object.values(players).every(p => p.status === 'selected' || p.status === 'loaded' || p.status === 'playing');
+
+        if (gameState === 'selecting' && allSelected) {
+            gameState = 'loading';
+            document.getElementById('char-select-screen').classList.add('hidden');
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            initThreeJS(container, players[userId].char);
+        }
+
+        const allLoaded = Object.values(players).every(p => p.status === 'loaded' || p.status === 'playing');
+        
+        if (gameState === 'loading' && allLoaded) {
+            gameState = 'playing';
+            document.getElementById('loading-overlay').classList.add('hidden');
+            document.getElementById('game-hud').classList.remove('hidden');
+            
+            const spawn = SPAWN_POINTS[mySpawnIndex % SPAWN_POINTS.length];
+            myPlayerModel.position.set(spawn.x, 0, spawn.z);
+            update(myPlayerRef, { status: 'playing', x: spawn.x, y: 0, z: spawn.z });
+            
+            setupControls();
+            startNetworkSync(roomId, userId);
+        }
+
+        if (gameState === 'playing' || gameState === 'loading') {
+            updateRemotePlayers(players, userId);
+        }
     });
 }
 
-function initThreeJS() {
-    const gameDiv = document.getElementById('brawl-container');
+function startNetworkSync(roomId, myId) {
+    syncInterval = setInterval(() => {
+        if (!myPlayerModel) return;
+        let animName = 'idle';
+        if (activeAction === actions.run) animName = 'run';
+        if (activeAction === actions.jump) animName = 'jump';
+        if (activeAction === actions.punch) animName = 'punch';
+
+        update(ref(db, `rooms/${roomId}/brawl/players/${myId}`), {
+            x: myPlayerModel.position.x,
+            y: myPlayerModel.position.y,
+            z: myPlayerModel.position.z,
+            rotation: myPlayerModel.rotation.y,
+            anim: animName
+        });
+    }, SYNC_RATE);
+}
+
+function updateRemotePlayers(playersData, myId) {
+    Object.keys(playersData).forEach(pid => {
+        if (pid === myId) return;
+        const pData = playersData[pid];
+        if (!otherPlayers[pid]) {
+            createRemotePlayer(pid, pData.char);
+        } else {
+            const remote = otherPlayers[pid];
+            if (remote.mesh) {
+                remote.mesh.position.lerp(new THREE.Vector3(pData.x, pData.y, pData.z), 0.3);
+                let rotDiff = pData.rotation - remote.mesh.rotation.y;
+                while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+                while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+                remote.mesh.rotation.y += rotDiff * 0.3;
+
+                if (remote.mixer && remote.actions && pData.anim) {
+                    const newAction = remote.actions[pData.anim];
+                    if (newAction && remote.currentAnim !== pData.anim) {
+                        if (remote.activeAction) remote.activeAction.fadeOut(0.2);
+                        newAction.reset().fadeIn(0.2).play();
+                        remote.activeAction = newAction;
+                        remote.currentAnim = pData.anim;
+                    }
+                }
+            }
+        }
+    });
+    Object.keys(otherPlayers).forEach(pid => {
+        if (!playersData[pid]) {
+            if(otherPlayers[pid].mesh) scene.remove(otherPlayers[pid].mesh);
+            delete otherPlayers[pid];
+        }
+    });
+}
+
+function createRemotePlayer(pid, charId) {
+    otherPlayers[pid] = { mesh: null, mixer: null, actions: {} };
+    const loader = new FBXLoader();
+    const texLoader = new THREE.TextureLoader();
+    const texture = texLoader.load('assets/models/cock/texture.png', (t) => { t.colorSpace = THREE.SRGBColorSpace; });
+
+    loader.load('assets/models/cock/cock_wait.fbx', (fbx) => {
+        fbx.scale.set(0.01, 0.01, 0.01);
+        fbx.traverse(c => { if(c.isMesh) c.material.map = texture; });
+        scene.add(fbx);
+        
+        const mixer = new THREE.AnimationMixer(fbx);
+        otherPlayers[pid].mesh = fbx;
+        otherPlayers[pid].mixer = mixer;
+        
+        if(fbx.animations[0]) {
+             const act = mixer.clipAction(fbx.animations[0]);
+             act.play();
+             otherPlayers[pid].actions['idle'] = act;
+             otherPlayers[pid].activeAction = act;
+        }
+
+        ['run', 'jump', 'punch'].forEach(anim => {
+            loader.load(`assets/models/cock/cock_${anim}.fbx`, (a) => {
+                if(a.animations[0]) {
+                    const act = mixer.clipAction(a.animations[0]);
+                    if(anim === 'jump' || anim === 'punch') act.setLoop(THREE.LoopOnce);
+                    otherPlayers[pid].actions[anim] = act;
+                }
+            });
+        });
+    });
+}
+
+function initThreeJS(container, charId) {
+    const gameDiv = document.getElementById('three-container');
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a1a1a);
-    scene.fog = new THREE.Fog(0x1a1a1a, 5, 40);
+    scene.background = new THREE.Color(0x111115); 
+    scene.fog = new THREE.Fog(0x111115, 10, 50);
 
     camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1.4, 1.8);
-    camera.lookAt(0, 0.8, 0);
-
+    
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
     gameDiv.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
-    dirLight.position.set(5, 10, 5);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+    scene.add(hemiLight);
+    
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    dirLight.position.set(10, 20, 10);
     dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
     scene.add(dirLight);
 
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 }));
-    floor.rotation.x = -Math.PI / 2;
+    const floorGeo = new THREE.CylinderGeometry(25, 25, 2, 64);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6, metalness: 0.2 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.position.y = -1;
     floor.receiveShadow = true;
     scene.add(floor);
-    scene.add(new THREE.GridHelper(100, 100, 0x444444, 0x111111));
+    
+    const grid = new THREE.GridHelper(50, 50, 0x333333, 0x111111);
+    grid.position.y = 0.01;
+    scene.add(grid);
 
-    loadPlayerAssets();
+    clock = new THREE.Clock();
+    
+    loadMyPlayer(charId);
+    animate();
 
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
@@ -108,244 +398,269 @@ function initThreeJS() {
     });
 }
 
-function loadPlayerAssets() {
+function loadMyPlayer(charId) {
     const loader = new FBXLoader();
     const texLoader = new THREE.TextureLoader();
-    const loadingText = document.getElementById('loading-text');
-
-    const texture = texLoader.load('assets/models/cock/texture.png', (tex) => { tex.colorSpace = THREE.SRGBColorSpace; });
+    const texture = texLoader.load('assets/models/cock/texture.png', (t) => t.colorSpace = THREE.SRGBColorSpace);
 
     loader.load('assets/models/cock/cock_wait.fbx', (fbx) => {
         myPlayerModel = fbx;
-        myPlayerModel.scale.set(0.01, 0.01, 0.01); 
-
-        myPlayerModel.traverse((child) => {
-            if (child.isMesh) {
-                child.castShadow = true;
-                child.receiveShadow = true;
-                if (child.material) {
-                    child.material.map = texture;
-                    child.material.shininess = 0;
-                    child.material.needsUpdate = true;
-                }
+        myPlayerModel.scale.set(0.01, 0.01, 0.01);
+        myPlayerModel.traverse(c => { 
+            if(c.isMesh) {
+                c.castShadow = true; 
+                c.material.map = texture; 
             }
         });
-
         scene.add(myPlayerModel);
         mixer = new THREE.AnimationMixer(myPlayerModel);
-        
         if(fbx.animations[0]) {
             actions.idle = mixer.clipAction(fbx.animations[0]);
             actions.idle.play();
             activeAction = actions.idle;
         }
 
-        loadingText.innerText = "Загрузка бега...";
-        loadAnimation('assets/models/cock/cock_run.fbx', 'run', loader, () => {
-            loadingText.innerText = "Загрузка прыжка...";
-            loadAnimation('assets/models/cock/cock_jump.fbx', 'jump', loader, () => {
-                loadingText.innerText = "Загрузка удара...";
-                loadAnimation('assets/models/cock/cock_punch.fbx', 'punch', loader, () => {
-                    loadingText.style.display = 'none';
+        const loadNext = (path, name, cb) => {
+             loader.load(path, (a) => {
+                 actions[name] = mixer.clipAction(a.animations[0]);
+                 if(name === 'jump' || name === 'punch') {
+                     actions[name].setLoop(THREE.LoopOnce);
+                     actions[name].clampWhenFinished = true;
+                 }
+                 if(cb) cb();
+             });
+        }
+        loadNext('assets/models/cock/cock_run.fbx', 'run', () => {
+            loadNext('assets/models/cock/cock_jump.fbx', 'jump', () => {
+                loadNext('assets/models/cock/cock_punch.fbx', 'punch', () => {
+                    update(myPlayerRef, { status: 'loaded' });
                 });
             });
         });
     });
 }
 
-function loadAnimation(path, name, loader, callback) {
-    loader.load(path, (animFbx) => {
-        if (animFbx.animations[0]) {
-            const action = mixer.clipAction(animFbx.animations[0]);
-            actions[name] = action;
-            if (name === 'jump' || name === 'punch') {
-                action.setLoop(THREE.LoopOnce);
-                action.clampWhenFinished = true;
+function setupControls() {
+    let isDragging = false;
+    
+    // Вращение камеры мышкой на ПК
+    window.addEventListener('mousedown', (e) => {
+        if(e.target.tagName !== 'BUTTON' && e.target.id !== 'custom-exit-btn') {
+            isDragging = true;
+            // ЛКМ больше НЕ бьет, бьет F. Но можно оставить как альтернативу, 
+            // однако вы просили "на F", поэтому ЛКМ только для камеры.
+        }
+    });
+    
+    window.addEventListener('mouseup', () => isDragging = false);
+    
+    window.addEventListener('mousemove', (e) => {
+        if (isDragging && !isMobile) {
+            cameraAngle -= e.movementX * 0.005;
+        }
+    });
+
+    window.addEventListener('keydown', (e) => {
+        if(e.code === 'KeyW') keys.w = true;
+        if(e.code === 'KeyS') keys.s = true;
+        if(e.code === 'KeyA') keys.a = true;
+        if(e.code === 'KeyD') keys.d = true;
+        if(e.code === 'Space') triggerJump();
+        
+        // НОВАЯ АТАКА НА F
+        if(e.code === 'KeyF') triggerPunch();
+
+        // НОВЫЙ ВЫХОД НА ESC
+        if(e.code === 'Escape') {
+            document.getElementById('close-fullscreen-btn')?.click();
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if(e.code === 'KeyW') keys.w = false;
+        if(e.code === 'KeyS') keys.s = false;
+        if(e.code === 'KeyA') keys.a = false;
+        if(e.code === 'KeyD') keys.d = false;
+    });
+
+    if (isMobile) {
+        setupJoystick();
+        
+        let lastTouchX = 0;
+        const touchZone = document.getElementById('three-container');
+        
+        touchZone.addEventListener('touchstart', (e) => {
+            const t = e.touches[0];
+            if (t.target.id !== 'joystick-nub' && t.target.id !== 'joystick-zone' && t.target.tagName !== 'BUTTON') {
+                lastTouchX = t.clientX;
+            }
+        }, {passive: false});
+
+        touchZone.addEventListener('touchmove', (e) => {
+             const t = e.touches[0];
+             if (t.target.id !== 'joystick-nub' && t.target.id !== 'joystick-zone' && t.target.tagName !== 'BUTTON') {
+                 const deltaX = t.clientX - lastTouchX;
+                 cameraAngle -= deltaX * 0.005;
+                 lastTouchX = t.clientX;
+             }
+        }, {passive: false});
+
+        document.getElementById('btn-jump')?.addEventListener('touchstart', (e) => { e.preventDefault(); triggerJump(); });
+        document.getElementById('btn-punch')?.addEventListener('touchstart', (e) => { e.preventDefault(); triggerPunch(); });
+    }
+}
+
+function setupJoystick() {
+    const zone = document.getElementById('joystick-zone');
+    const nub = document.getElementById('joystick-nub');
+    if (!zone) return;
+    let touchId = null, startX, startY;
+    const maxRadius = 35;
+    
+    zone.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        touchId = touch.identifier;
+        startX = touch.clientX; startY = touch.clientY;
+        joystick = {x:0,y:0};
+        nub.style.transition = 'none';
+    }, {passive:false});
+    
+    zone.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        for(let i=0; i<e.changedTouches.length; i++){
+            if(e.changedTouches[i].identifier === touchId){
+                let t = e.changedTouches[i];
+                let dx = t.clientX - startX; let dy = t.clientY - startY;
+                let d = Math.sqrt(dx*dx+dy*dy);
+                if(d > maxRadius) { let r = maxRadius/d; dx*=r; dy*=r; }
+                nub.style.transform = `translate(${dx}px, ${dy}px)`;
+                joystick = {x: dx/maxRadius, y: dy/maxRadius};
+                break;
             }
         }
-        if (callback) callback();
+    }, {passive:false});
+    
+    zone.addEventListener('touchend', (e) => {
+         for(let i=0; i<e.changedTouches.length; i++){
+            if(e.changedTouches[i].identifier === touchId){
+                joystick = {x:0,y:0}; touchId = null;
+                nub.style.transition = '0.1s';
+                nub.style.transform = 'translate(0,0)';
+                break;
+            }
+         }
     });
 }
 
-// --- ЛОГИКА ФИЗИКИ ПРЫЖКА ---
 function triggerJump() {
-    // Прыгаем только если стоим на земле и не бьем
     if (!isGrounded || isPunching) return;
-
-    isGrounded = false;       // Оторвались от земли
-    verticalVelocity = JUMP_FORCE; // Придали ускорение вверх
-
-    fadeToAction('jump', 0.1); // Включили анимацию
+    isGrounded = false;
+    verticalVelocity = JUMP_FORCE;
+    fadeToAction('jump', 0.1);
 }
 
 function triggerPunch() {
-    if (isPunching) return; // Нельзя спамить удар
-    fadeToAction('punch', 0.1);
+    if (isPunching) return;
     isPunching = true;
-    
-    // Удар длится пока играет анимация (примерно 0.5с)
-    setTimeout(() => {
-        isPunching = false;
-        // Если после удара мы всё еще на земле, возвращаем Idle/Run
-        if (isGrounded) {
-             const isMoving = (keys.w || keys.s || keys.a || keys.d || Math.abs(joystick.x) > 0.1);
-             fadeToAction(isMoving ? 'run' : 'idle', 0.2);
-        }
+    fadeToAction('punch', 0.1);
+    setTimeout(() => { 
+        isPunching = false; 
+        if(isGrounded) fadeToAction(keys.w||keys.s||keys.a||keys.d ? 'run' : 'idle', 0.2); 
     }, 500);
 }
 
-function fadeToAction(name, duration) {
-    const nextAction = actions[name];
-    if (!nextAction || activeAction === nextAction) return;
-    nextAction.reset();
-    nextAction.play();
-    activeAction.crossFadeTo(nextAction, duration, true);
-    activeAction = nextAction;
-}
-
-function setupControls() {
-    window.addEventListener('keydown', (e) => {
-        if (e.code === 'KeyW') keys.w = true;
-        if (e.code === 'KeyS') keys.s = true;
-        if (e.code === 'KeyA') keys.a = true;
-        if (e.code === 'KeyD') keys.d = true;
-        if (e.code === 'Space') { keys.space = true; triggerJump(); }
-    });
-    window.addEventListener('keyup', (e) => {
-        if (e.code === 'KeyW') keys.w = false;
-        if (e.code === 'KeyS') keys.s = false;
-        if (e.code === 'KeyA') keys.a = false;
-        if (e.code === 'KeyD') keys.d = false;
-        if (e.code === 'Space') keys.space = false;
-    });
-    window.addEventListener('mousedown', () => triggerPunch());
-
-    if (isMobile) {
-        const zone = document.getElementById('joystick-zone');
-        const nub = document.getElementById('joystick-nub');
-        if (!zone) return;
-        let touchId = null;
-        let startX, startY;
-        const maxRadius = 35;
-
-        zone.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            const touch = e.changedTouches[0];
-            touchId = touch.identifier;
-            startX = touch.clientX; startY = touch.clientY;
-            joystick = { x: 0, y: 0 };
-            nub.style.transition = 'none';
-        }, { passive: false });
-
-        zone.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                if (e.changedTouches[i].identifier === touchId) {
-                    const touch = e.changedTouches[i];
-                    let dx = touch.clientX - startX; let dy = touch.clientY - startY;
-                    const distance = Math.sqrt(dx*dx + dy*dy);
-                    if (distance > maxRadius) {
-                        const ratio = maxRadius / distance;
-                        dx *= ratio; dy *= ratio;
-                    }
-                    nub.style.transform = `translate(${dx}px, ${dy}px)`;
-                    joystick.x = dx / maxRadius; joystick.y = dy / maxRadius;
-                    break;
-                }
-            }
-        }, { passive: false });
-
-        zone.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                if (e.changedTouches[i].identifier === touchId) {
-                    joystick = { x: 0, y: 0 }; touchId = null;
-                    nub.style.transition = 'transform 0.1s';
-                    nub.style.transform = `translate(0px, 0px)`;
-                    break;
-                }
-            }
-        }, { passive: false });
-    }
+function fadeToAction(name, dur) {
+    if(!actions[name] || activeAction === actions[name]) return;
+    actions[name].reset().play();
+    activeAction.crossFadeTo(actions[name], dur, true);
+    activeAction = actions[name];
 }
 
 function animate() {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
 
-    // 1. ДВИЖЕНИЕ (WASD / Джойстик)
-    let moveX = 0;
-    let moveZ = 0;
-    if (keys.w) moveZ = -1;
-    if (keys.s) moveZ = 1;
-    if (keys.a) moveX = -1;
-    if (keys.d) moveX = 1;
-    if (Math.abs(joystick.x) > 0.1 || Math.abs(joystick.y) > 0.1) {
-        moveX = joystick.x; moveZ = joystick.y;
-    }
-    const isMoving = (moveX !== 0 || moveZ !== 0);
+    Object.values(otherPlayers).forEach(p => {
+        if(p.mixer) p.mixer.update(delta);
+    });
 
-    if (myPlayerModel) {
-        // 2. ФИЗИКА (ГРАВИТАЦИЯ)
-        // Если мы в воздухе, применяем гравитацию
-        if (!isGrounded) {
-            verticalVelocity += GRAVITY * delta;
-        }
-        
-        // Применяем вертикальную скорость к позиции
+    if (myPlayerModel && gameState === 'playing') {
+        let moveX = 0, moveZ = 0;
+        if(keys.w) moveZ = -1;
+        if(keys.s) moveZ = 1;
+        if(keys.a) moveX = -1;
+        if(keys.d) moveX = 1;
+        if(Math.abs(joystick.x) > 0.1 || Math.abs(joystick.y) > 0.1) { moveX = joystick.x; moveZ = joystick.y; }
+
+        if (!isGrounded) verticalVelocity += GRAVITY * delta;
         myPlayerModel.position.y += verticalVelocity * delta;
 
-        // 3. УДАР ОБ ПОЛ (COLLISION)
         if (myPlayerModel.position.y <= 0) {
-            myPlayerModel.position.y = 0; // Не проваливаемся
+            myPlayerModel.position.y = 0;
             verticalVelocity = 0;
-            
-            // Если мы только что приземлились
             if (!isGrounded) {
                 isGrounded = true;
-                // Возвращаем анимацию бега или стойки (если не бьем)
-                if (!isPunching) {
-                    fadeToAction(isMoving ? 'run' : 'idle', 0.2);
-                }
+                if(!isPunching) fadeToAction((moveX||moveZ) ? 'run' : 'idle', 0.1);
             }
         }
+        
+        if (myPlayerModel.position.y < -10) {
+             const spawn = SPAWN_POINTS[mySpawnIndex % SPAWN_POINTS.length];
+             myPlayerModel.position.set(spawn.x, 5, spawn.z);
+             verticalVelocity = 0;
+        }
 
-        // 4. ГОРИЗОНТАЛЬНОЕ ДВИЖЕНИЕ
-        // Двигаемся, только если не бьем (или если бьем, то медленно - опционально)
-        if (isMoving && !isPunching) {
-            myPlayerModel.position.x += moveX * SPEED * delta;
-            myPlayerModel.position.z += moveZ * SPEED * delta;
+        // --- ДВИЖЕНИЕ С УЧЕТОМ КАМЕРЫ ---
+        if ((moveX !== 0 || moveZ !== 0) && !isPunching) {
+            const inputVector = new THREE.Vector3(moveX, 0, moveZ).normalize();
             
-            // Плавный поворот
-            const targetRotation = Math.atan2(moveX, moveZ);
-            let rotDiff = targetRotation - myPlayerModel.rotation.y;
-            // Нормализация угла (чтобы не крутился на 360 лишнего)
-            while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
-            while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-            myPlayerModel.rotation.y += rotDiff * 10 * delta; // 10 - скорость поворота
+            // Вращаем вектор ввода относительно угла камеры
+            inputVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
+
+            myPlayerModel.position.x += inputVector.x * SPEED * delta;
+            myPlayerModel.position.z += inputVector.z * SPEED * delta;
+            
+            // Вращаем персонажа в сторону движения
+            const targetRot = Math.atan2(inputVector.x, inputVector.z);
+            let diff = targetRot - myPlayerModel.rotation.y;
+            while (diff > Math.PI) diff -= Math.PI*2;
+            while (diff < -Math.PI) diff += Math.PI*2;
+            myPlayerModel.rotation.y += diff * 10 * delta;
+
+            if(isGrounded) fadeToAction('run', 0.2);
+        } else {
+             if(isGrounded && !isPunching) fadeToAction('idle', 0.2);
         }
 
-        // 5. КАМЕРА (Следование)
-        camera.position.x = myPlayerModel.position.x;
-        // Камера чуть подпрыгивает вместе с игроком, но мягче
-        camera.position.y = THREE.MathUtils.lerp(camera.position.y, myPlayerModel.position.y + 1.4, 0.1);
-        camera.position.z = myPlayerModel.position.z + 1.8;
-        camera.lookAt(myPlayerModel.position.x, myPlayerModel.position.y + 0.8, myPlayerModel.position.z);
-    
-        // 6. ОБНОВЛЕНИЕ АНИМАЦИИ БЕГА/СТОЙКИ
-        // Если мы на земле и не бьем, переключаем бег/стойку
-        if (isGrounded && !isPunching && mixer) {
-            const targetAction = isMoving ? actions.run : actions.idle;
-            if (activeAction !== targetAction && targetAction) {
-                fadeToAction(isMoving ? 'run' : 'idle', 0.2);
-            }
-        }
+        // --- ОБНОВЛЕНИЕ КАМЕРЫ (3rd Person Close) ---
+        const offsetX = Math.sin(cameraAngle) * CAM_DISTANCE;
+        const offsetZ = Math.cos(cameraAngle) * CAM_DISTANCE;
+
+        const targetX = myPlayerModel.position.x + offsetX;
+        const targetZ = myPlayerModel.position.z + offsetZ;
+        const targetY = myPlayerModel.position.y + CAM_HEIGHT;
+
+        camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, 0.1);
+        camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, 0.1);
+        camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetY, 0.1);
+        
+        camera.lookAt(
+            myPlayerModel.position.x, 
+            myPlayerModel.position.y + LOOK_OFFSET_Y, 
+            myPlayerModel.position.z
+        );
     }
-
-    if (mixer) mixer.update(delta);
+    
+    if(mixer) mixer.update(delta);
     renderer.render(scene, camera);
 }
 
 export function cleanupGame() {
-    window.location.reload();
+    if (unsubscribePlayers) unsubscribePlayers();
+    if (syncInterval) clearInterval(syncInterval);
+    const style = document.getElementById('brawl-game-styles');
+    if (style) style.remove();
+    document.getElementById('brawl-ui')?.remove();
+    document.getElementById('three-container').innerHTML = '';
 }

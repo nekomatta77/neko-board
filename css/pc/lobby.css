@@ -75,7 +75,7 @@
     color: white;
 }
 
-/* --- ЗОНА СОЗДАНИЯ (ИСПРАВЛЕНО) --- */
+/* --- ЗОНА СОЗДАНИЯ --- */
 .create-zone {
     width: 900px;
     max-width: 90%;
@@ -85,15 +85,14 @@
     background: rgba(255, 255, 255, 0.03);
     padding: 20px;
     border-radius: 16px;
-    align-items: center; /* Выравнивание по центру */
+    align-items: center;
 }
 
-/* Обертка для селекта больше не нужна для стиля, стилизуем сам select */
 .select-wrapper {
     flex: 1;
     display: flex;
     align-items: center;
-    position: relative; /* Для позиционирования стрелки */
+    position: relative;
 }
 
 .select-wrapper label {
@@ -106,7 +105,7 @@
 /* Кастомный Select */
 select {
     width: 100%;
-    appearance: none;        /* Убираем стандартный стиль браузера */
+    appearance: none;
     -webkit-appearance: none;
     background-color: #1e1e24;
     color: white;
@@ -117,30 +116,18 @@ select {
     outline: none;
     cursor: pointer;
     transition: border-color 0.2s;
-    
-    /* Рисуем стрелочку */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23bb86fc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 15px center;
     background-size: 16px;
 }
 
-select:hover {
-    border-color: #666;
-}
-select:focus {
-    border-color: var(--primary);
-}
-
-/* Опции внутри выпадающего списка (стилизуются только фон и цвет) */
-option {
-    background-color: #1e1e24;
-    color: white;
-    padding: 10px;
-}
+select:hover { border-color: #666; }
+select:focus { border-color: var(--primary); }
+option { background-color: #1e1e24; color: white; padding: 10px; }
 
 .action-btn {
-    height: 46px; /* Фиксируем высоту как у select */
+    height: 46px;
     padding: 0 30px;
     background: var(--primary);
     color: #000;
@@ -159,9 +146,7 @@ option {
     background: var(--primary-hover);
     box-shadow: 0 0 15px rgba(187, 134, 252, 0.3);
 }
-.action-btn:active {
-    transform: translateY(2px);
-}
+.action-btn:active { transform: translateY(2px); }
 
 h3 {
     width: 900px;
@@ -181,23 +166,13 @@ h3 {
     flex-grow: 1;
     overflow-y: auto;
     padding-bottom: 20px;
-    padding-right: 5px; /* Чтобы скроллбар не налипал */
+    padding-right: 5px;
 }
 
-/* Кастомный скроллбар */
-.scroll-area::-webkit-scrollbar {
-    width: 6px;
-}
-.scroll-area::-webkit-scrollbar-track {
-    background: transparent;
-}
-.scroll-area::-webkit-scrollbar-thumb {
-    background: #333;
-    border-radius: 3px;
-}
-.scroll-area::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
+.scroll-area::-webkit-scrollbar { width: 6px; }
+.scroll-area::-webkit-scrollbar-track { background: transparent; }
+.scroll-area::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+.scroll-area::-webkit-scrollbar-thumb:hover { background: #555; }
 
 #rooms-list {
     display: grid;
@@ -234,63 +209,138 @@ h3 {
 }
 .room-card:hover::before { opacity: 1; }
 
-.room-info {
-    display: flex;
-    align-items: center;
-}
+.room-info { display: flex; align-items: center; }
 
 .room-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    margin-right: 15px;
-    object-fit: cover;
-    background: #000;
+    width: 48px; height: 48px;
+    border-radius: 50%; margin-right: 15px;
+    object-fit: cover; background: #000;
 }
 
-.room-text {
-    display: flex;
-    flex-direction: column;
-}
-
-.room-text b {
-    font-size: 18px;
-    margin-bottom: 5px;
-    color: white;
-}
-.room-text small {
-    color: #888;
-}
+.room-text { display: flex; flex-direction: column; }
+.room-text b { font-size: 18px; margin-bottom: 5px; color: white; }
+.room-text small { color: #888; }
 
 .join-btn {
-    width: 100%;
-    padding: 10px;
-    background: #2a2a2a;
-    color: #bbb;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: bold;
+    width: 100%; padding: 10px;
+    background: #2a2a2a; color: #bbb;
+    border: none; border-radius: 6px;
+    cursor: pointer; font-weight: bold;
     transition: all 0.2s;
 }
 
-.room-card:hover .join-btn:not(.full) {
-    background: var(--secondary);
-    color: black;
-}
-
-.join-btn.full {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background: #222;
-}
+.room-card:hover .join-btn:not(.full) { background: var(--secondary); color: black; }
+.join-btn.full { opacity: 0.5; cursor: not-allowed; background: #222; }
 
 .empty-state {
-    grid-column: 1 / -1;
-    text-align: center;
-    padding: 40px;
-    color: #666;
-    background: rgba(255,255,255,0.02);
+    grid-column: 1 / -1; text-align: center; padding: 40px;
+    color: #666; background: rgba(255,255,255,0.02);
+    border-radius: 12px; border: 1px dashed #333;
+}
+
+/* --- МОДЕРНИЗИРОВАННЫЕ ЭЛЕМЕНТЫ ЛОББИ (PC Modern UI) --- */
+
+/* Сетка выбора игр */
+.games-grid-menu {
+    display: flex;
+    justify-content: center;
+    gap: 30px; /* Отступ между кнопками */
+    margin: 20px 0;
+}
+
+/* Карточка игры */
+.game-card-btn {
+    background: rgba(30, 30, 35, 0.8);
+    border-radius: 16px;
+    border: 2px solid transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    gap: 10px;
+    color: #aaa;
+    transition: 0.3s;
+    width: 120px;
+    height: 120px;
+}
+
+.game-card-btn:hover {
+    background: rgba(40, 40, 50, 0.9);
+    transform: translateY(-5px);
+}
+
+.game-card-btn.selected {
+    border-color: #FFD700;
+    background: linear-gradient(180deg, rgba(255, 215, 0, 0.05), rgba(255, 215, 0, 0.0));
+    color: #FFD700;
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.15);
+}
+
+/* Кнопка "Я ГОТОВ" */
+.ready-btn {
+    width: 100%;
+    padding: 15px;
+    margin-bottom: 30px; /* Большой отступ снизу */
     border-radius: 12px;
-    border: 1px dashed #333;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #888;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.ready-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.ready-btn.is-ready {
+    background: linear-gradient(135deg, #00C853, #64DD17);
+    color: #003300;
+    border: none;
+    box-shadow: 0 0 20px rgba(100, 221, 23, 0.4);
+}
+
+.ready-btn.is-ready:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 30px rgba(100, 221, 23, 0.6);
+}
+
+/* Кнопка Старта Хоста */
+#host-start-btn {
+    width: 100%;
+    padding: 16px;
+    border-radius: 12px;
+    background: linear-gradient(90deg, #2196F3, #21CBF3);
+    color: white;
+    font-weight: bold;
+    font-size: 16px;
+    letter-spacing: 1px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+    transition: all 0.3s;
+}
+
+#host-start-btn:disabled {
+    background: #333;
+    color: #555;
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+}
+
+#host-start-btn:not(:disabled):hover {
+    box-shadow: 0 6px 20px rgba(33, 150, 243, 0.5);
+    transform: scale(1.02);
 }
