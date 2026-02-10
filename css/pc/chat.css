@@ -1,13 +1,27 @@
+/* css/pc/chat.css */
+
 .chat-area {
     grid-column: 2;
     grid-row: 2;
-    background: #111;
-    border-left: 1px solid #333;
+    background: #18181b; /* Темно-серый фон, чуть светлее основного */
+    border-left: 1px solid #27272a; /* Тонкая граница слева */
     display: flex;
     flex-direction: column;
     height: 100%;
     position: relative;
-    z-index: 100;
+    z-index: 200;
+}
+
+/* Заголовок чата (опционально, для красоты) */
+.chat-area::before {
+    content: 'ЧАТ КОМНАТЫ';
+    display: block;
+    padding: 15px 20px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #52525b;
+    border-bottom: 1px solid #27272a;
+    letter-spacing: 1px;
 }
 
 .chat-messages {
@@ -16,46 +30,109 @@
     padding: 20px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
+}
+
+/* Скроллбар чата */
+.chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+.chat-messages::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 3px;
+}
+.chat-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-welcome {
+    text-align: center;
+    color: #71717a;
+    font-size: 13px;
+    margin-bottom: 20px;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.03);
 }
 
 .chat-msg {
     font-size: 14px;
-    line-height: 1.4;
+    line-height: 1.5;
+    word-break: break-word;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .msg-author {
-    font-weight: bold;
-    margin-right: 5px;
+    font-weight: 700;
+    margin-right: 6px;
+    font-size: 13px;
 }
 
+.msg-text {
+    color: #e4e4e7;
+}
+
+/* Зона ввода сообщения */
 .chat-input-row {
     padding: 20px;
-    background: #16161a;
-    border-top: 1px solid #333;
+    background: #18181b;
+    border-top: 1px solid #27272a;
     display: flex;
+    align-items: center;
     gap: 10px;
 }
 
 #chat-input {
     flex: 1;
-    background: #25252a;
-    border: 1px solid #333;
-    border-radius: 6px;
-    padding: 10px;
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    border-radius: 20px; /* Скругленная форма */
+    padding: 12px 15px;
     color: white;
+    font-size: 14px;
     outline: none;
+    transition: border-color 0.2s, background 0.2s;
 }
+
 #chat-input:focus {
     border-color: var(--primary);
+    background: #000;
+}
+#chat-input::placeholder {
+    color: #71717a;
 }
 
 #send-chat-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%; /* Круглая кнопка */
     background: var(--primary);
-    color: black;
+    color: #000;
     border: none;
-    border-radius: 6px;
-    padding: 0 15px;
-    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     cursor: pointer;
+    font-size: 16px;
+    transition: transform 0.1s, opacity 0.2s;
+}
+
+#send-chat-btn:hover {
+    opacity: 0.9;
+    transform: scale(1.05);
+}
+#send-chat-btn:active {
+    transform: scale(0.95);
+}
+
+/* Иконка самолетика (можно текстом или SVG) */
+#send-chat-btn::after {
+    content: '➤'; 
+    font-size: 14px;
+    margin-left: 2px; /* Визуальная коррекция */
 }
