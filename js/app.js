@@ -19,6 +19,42 @@ function loadPlatformStyles() {
         }
         link.href = `css/${currentPlatform}/${file}.css`;
     });
+
+    // Вставляем стили для напоминания о повороте экрана (только мобильные)
+    if (isMobile) {
+        const style = document.createElement('style');
+        style.textContent = `
+            #orientation-warning {
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: #111; z-index: 100000;
+                display: none; flex-direction: column; align-items: center; justify-content: center;
+                color: white; text-align: center;
+            }
+            #orientation-warning img { width: 80px; margin-bottom: 20px; animation: rotate-phone 2s infinite ease-in-out; }
+            @keyframes rotate-phone { 0% { transform: rotate(0deg); } 50% { transform: rotate(90deg); } 100% { transform: rotate(0deg); } }
+        `;
+        document.head.appendChild(style);
+
+        const warningDiv = document.createElement('div');
+        warningDiv.id = 'orientation-warning';
+        warningDiv.innerHTML = `
+            <div style="font-size:40px;">📱</div>
+            <h3>Пожалуйста, переверните устройство</h3>
+            <p>Игра работает в горизонтальном режиме</p>
+        `;
+        document.body.appendChild(warningDiv);
+
+        function checkOrientation() {
+            const warning = document.getElementById('orientation-warning');
+            if (window.innerHeight > window.innerWidth) {
+                warning.style.display = 'flex';
+            } else {
+                warning.style.display = 'none';
+            }
+        }
+        window.addEventListener('resize', checkOrientation);
+        checkOrientation();
+    }
 }
 loadPlatformStyles();
 
@@ -363,7 +399,6 @@ function renderGameControls(room) {
     }
 }
 
-// Глобальные функции
 window.selectGame = function(gameName) {
     if (!currentRoomId || !amIHost) return;
     updateRoomActivity(currentRoomId);
@@ -393,7 +428,6 @@ window.startGameTrigger = function(gameName) {
 
 // --- ЗАГРУЗКА ИГРЫ ---
 async function loadGameModule(gameName) {
-    // ВАЖНО: Добавляем класс, чтобы CSS знал, что игра идет, и скрыл лобби
     document.body.classList.add('in-game');
 
     fullscreenMount.innerHTML = '<div class="waiting-text">Подключение...</div>';
@@ -429,7 +463,6 @@ async function loadGameModule(gameName) {
     }
 }
 
-// --- ВЫХОД ---
 closeFullscreenBtn.addEventListener('click', () => {
     if (amIHost && currentRoomId) {
         if(confirm("Завершить игру для всех?")) {
@@ -449,7 +482,6 @@ closeFullscreenBtn.addEventListener('click', () => {
 });
 
 function closeFullscreenGame() {
-    // Убираем класс, чтобы вернуть лобби
     document.body.classList.remove('in-game');
 
     fullscreenOverlay.classList.add('hidden');

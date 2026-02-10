@@ -13,7 +13,8 @@ const SPAWN_POINTS = [
 const GRAVITY = -30;
 const JUMP_FORCE = 12;
 const SPEED = 6;
-const SYNC_RATE = 50; 
+// УСКОРЯЕМ СИНХРОНИЗАЦИЮ (было 50)
+const SYNC_RATE = 30; 
 
 // --- НАСТРОЙКИ КАМЕРЫ ---
 const CAM_DISTANCE = 4.0;
@@ -23,7 +24,7 @@ const LOOK_OFFSET_Y = 1.8;
 // --- БОЕВЫЕ НАСТРОЙКИ ---
 const MAX_HP = 100;
 const PUNCH_DAMAGE = 10;
-const PUNCH_RANGE = 2.5; // Дистанция удара
+const PUNCH_RANGE = 2.5;
 
 let scene, camera, renderer, clock;
 let myPlayerModel, mixer;
@@ -37,9 +38,8 @@ let mySpawnIndex = 0;
 let gameState = 'selecting';
 
 let cameraAngle = Math.PI; 
-let hpBars = {}; // Храним ссылки на DOM элементы HP баров { id: element }
+let hpBars = {}; 
 
-// Ссылки Firebase
 let roomRef, myPlayerRef;
 let unsubscribePlayers = null;
 let syncInterval = null;
@@ -58,10 +58,11 @@ function injectStyles() {
             font-family: 'Segoe UI', sans-serif;
             user-select: none;
             overflow: hidden;
+            -webkit-user-select: none; /* Safari */
+            touch-action: none; /* Блокируем жесты браузера */
         }
         #brawl-ui > * { pointer-events: auto; }
 
-        /* ЭКРАН ВЫБОРА */
         #char-select-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(10, 10, 12, 0.98);
@@ -83,7 +84,6 @@ function injectStyles() {
         .char-option span { 
             margin-top: 10px; font-weight: bold; color: #888; text-transform: uppercase; font-size: 12px; 
         }
-        .char-option:hover { transform: translateY(-5px); border-color: #666; }
         .char-option.selected { 
             border-color: #00E676; 
             box-shadow: 0 0 30px rgba(0, 230, 118, 0.3);
@@ -113,7 +113,7 @@ function injectStyles() {
             pointer-events: none;
             transform: translate(-50%, -50%);
             z-index: 5;
-            display: none; /* Скрыт пока не позиционирован */
+            display: none; 
         }
         .hp-bar-fill {
             height: 100%;
@@ -125,7 +125,7 @@ function injectStyles() {
         .hp-bar-fill.low { background: #ff3d00; }
         .hp-bar-fill.med { background: #ffea00; }
 
-        /* ИНТЕРФЕЙС (МОБИЛЬНЫЙ) */
+        /* MOBILE CONTROLS */
         #custom-exit-btn {
             position: absolute; top: 20px; right: 20px;
             width: 40px; height: 40px;
@@ -136,8 +136,7 @@ function injectStyles() {
             cursor: pointer; pointer-events: auto;
             z-index: 100; transition: 0.2s;
         }
-        #custom-exit-btn:hover { background: rgba(200, 50, 50, 0.8); border-color: red; }
-
+        
         #joystick-zone {
             position: absolute; bottom: 50px; left: 50px;
             width: 120px; height: 120px;
@@ -176,6 +175,13 @@ function injectStyles() {
 export function initGame(container, roomId, userId, isHost, playersList) {
     injectStyles();
 
+    // Запрос полного экрана на мобильных при старте
+    if (isMobile && document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(err => {
+            console.log("Fullscreen request denied/failed", err);
+        });
+    }
+
     const playerIds = Object.keys(playersList).sort();
     mySpawnIndex = playerIds.indexOf(userId);
     if (mySpawnIndex === -1) mySpawnIndex = 0;
@@ -183,20 +189,17 @@ export function initGame(container, roomId, userId, isHost, playersList) {
     roomRef = ref(db, `rooms/${roomId}/brawl`);
     myPlayerRef = ref(db, `rooms/${roomId}/brawl/players/${userId}`);
 
-    // Инициализация игрока с HP
     set(myPlayerRef, {
         status: 'selecting',
         name: playersList[userId].name,
         char: null,
-        hp: MAX_HP, // Добавляем здоровье
+        hp: MAX_HP,
         x: 0, y: -100, z: 0,
         rotation: 0,
         anim: 'idle'
     });
 
-    let hudHTML = '';
-    // Контейнер для HP баров
-    hudHTML += '<div id="hp-bars-layer"></div>';
+    let hudHTML = '<div id="hp-bars-layer"></div>';
 
     if (isMobile) {
         hudHTML += `
@@ -283,14 +286,13 @@ export function initGame(container, roomId, userId, isHost, playersList) {
             myPlayerModel.position.set(spawn.x, 0, spawn.z);
             update(myPlayerRef, { status: 'playing', hp: MAX_HP, x: spawn.x, y: 0, z: spawn.z });
             
-            setupControls(roomId, userId); // Передаем ID для урона
+            setupControls(roomId, userId);
             startNetworkSync(roomId, userId);
         }
 
         if (gameState === 'playing' || gameState === 'loading') {
             updateRemotePlayers(players, userId);
             
-            // Проверка на смерть (если кто-то удалил здоровье в Firebase)
             if (players[userId] && players[userId].hp <= 0 && !isDead) {
                 handleDeath(roomId, userId);
             }
@@ -301,14 +303,8 @@ export function initGame(container, roomId, userId, isHost, playersList) {
 function handleDeath(roomId, userId) {
     if (isDead) return;
     isDead = true;
-    
-    // Играем анимацию смерти
     fadeToAction('death', 0.2);
-    
-    // Отключаем управление (больше не ходим)
     isPunching = false; 
-    
-    // Обновляем статус
     update(ref(db, `rooms/${roomId}/brawl/players/${userId}`), { status: 'dead', anim: 'death' });
 }
 
@@ -317,14 +313,13 @@ function startNetworkSync(roomId, myId) {
         if (!myPlayerModel) return;
         
         let animName = 'idle';
-        if (isDead) animName = 'death'; // Если мертв - всегда death
+        if (isDead) animName = 'death';
         else {
             if (activeAction === actions.run) animName = 'run';
             if (activeAction === actions.jump) animName = 'jump';
             if (activeAction === actions.punch) animName = 'punch';
         }
 
-        // Если мертв, не обновляем позицию, только статус и анимацию
         const updates = {
             anim: animName,
             status: isDead ? 'dead' : 'playing'
@@ -344,8 +339,6 @@ function startNetworkSync(roomId, myId) {
 function updateRemotePlayers(playersData, myId) {
     Object.keys(playersData).forEach(pid => {
         const pData = playersData[pid];
-        
-        // Управление HP баром
         updateHpBar(pid, pData.hp, pData.name, pid === myId);
 
         if (pid === myId) return;
@@ -355,31 +348,32 @@ function updateRemotePlayers(playersData, myId) {
         } else {
             const remote = otherPlayers[pid];
             if (remote.mesh) {
-                // ПЛАВНОСТЬ: Используем интерполяцию (lerp) с малым коэффициентом
-                // Если дистанция большая (телепорт), прыгаем сразу
+                // --- УЛУЧШЕННАЯ СИНХРОНИЗАЦИЯ (FIX LAGS) ---
                 const newPos = new THREE.Vector3(pData.x, pData.y, pData.z);
                 const dist = remote.mesh.position.distanceTo(newPos);
                 
-                if (dist > 5) {
-                    remote.mesh.position.copy(newPos); // Телепорт
-                } else if (dist > 0.05) {
-                    // Коэффициент 0.1 делает движение плавным, убирает дрожание
-                    remote.mesh.position.lerp(newPos, 0.1); 
+                // 1. Телепорт если очень далеко (лаг сети)
+                if (dist > 3.0) {
+                    remote.mesh.position.copy(newPos);
+                } 
+                // 2. Плавная и БЫСТРАЯ интерполяция если рядом
+                else if (dist > 0.01) { // Игнорируем микро-дрожь
+                    // Lerp factor 0.3 - намного быстрее чем 0.1
+                    remote.mesh.position.lerp(newPos, 0.3); 
                 }
 
                 // Вращение
                 let rotDiff = pData.rotation - remote.mesh.rotation.y;
                 while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
                 while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-                // Очень плавно вращаем
-                remote.mesh.rotation.y += rotDiff * 0.1;
+                remote.mesh.rotation.y += rotDiff * 0.3; // Тоже быстрее
 
                 // Анимация
                 if (remote.mixer && remote.actions && pData.anim) {
                     const newAction = remote.actions[pData.anim];
                     if (newAction && remote.currentAnim !== pData.anim) {
-                        if (remote.activeAction) remote.activeAction.fadeOut(0.2);
-                        newAction.reset().fadeIn(0.2).play();
+                        if (remote.activeAction) remote.activeAction.fadeOut(0.15); // Быстрее переход
+                        newAction.reset().fadeIn(0.15).play();
                         remote.activeAction = newAction;
                         remote.currentAnim = pData.anim;
                     }
@@ -388,7 +382,6 @@ function updateRemotePlayers(playersData, myId) {
         }
     });
 
-    // Удаление ушедших
     Object.keys(otherPlayers).forEach(pid => {
         if (!playersData[pid]) {
             if(otherPlayers[pid].mesh) scene.remove(otherPlayers[pid].mesh);
@@ -398,7 +391,6 @@ function updateRemotePlayers(playersData, myId) {
     });
 }
 
-// --- УПРАВЛЕНИЕ HP БАРАМИ ---
 function updateHpBar(pid, hp, name, isMe) {
     let bar = hpBars[pid];
     if (!bar) {
@@ -409,18 +401,14 @@ function updateHpBar(pid, hp, name, isMe) {
         hpBars[pid] = bar;
     }
 
-    // Обновляем ширину
     const fill = bar.querySelector('.hp-bar-fill');
     const pct = Math.max(0, Math.min(100, hp));
     fill.style.width = pct + '%';
     
-    // Цвет
     fill.className = 'hp-bar-fill';
     if (pct < 50) fill.classList.add('med');
     if (pct < 20) fill.classList.add('low');
 
-    // Если мертв или это я - можно скрыть (или оставить)
-    // Я решил оставить для себя тоже, чтобы видеть свое HP
     if (hp <= 0) bar.style.opacity = 0;
     else bar.style.opacity = 1;
 }
@@ -433,51 +421,31 @@ function removeHpBar(pid) {
 }
 
 function updateHpBarsPositions() {
-    // Обновляем позиции 2D плашек каждый кадр
     Object.keys(hpBars).forEach(pid => {
         let targetMesh = null;
-        
-        if (pid === myPlayerRef.key) targetMesh = myPlayerModel; // Мой ID? (надо проверить логику ID)
-        // Тут хитрость: мы не знаем мой ID в этой функции напрямую, если он не глобален.
-        // Но myPlayerModel есть глобально.
-        // А otherPlayers хранит чужие.
-        
         if (otherPlayers[pid]) targetMesh = otherPlayers[pid].mesh;
-        else if (myPlayerModel && pid === myPlayerRef.key) targetMesh = myPlayerModel; // Костыль, но сработает если myPlayerRef.key совпадет
-        
-        // Исправим проще:
-        // Переберем otherPlayers
-        if (otherPlayers[pid] && otherPlayers[pid].mesh) {
-            updateSingleBarPos(hpBars[pid], otherPlayers[pid].mesh);
+        else if (myPlayerModel && pid.includes(myPlayerRef.key.split('/').pop())) { 
+             targetMesh = myPlayerModel;
         }
-        // И себя
-        if (myPlayerModel && pid.includes(myPlayerRef.key.split('/').pop())) { // Очень грубая проверка, лучше хранить myId
-             updateSingleBarPos(hpBars[pid], myPlayerModel);
+        
+        if (targetMesh) {
+            const pos = targetMesh.position.clone();
+            pos.y += 2.2; 
+            
+            pos.project(camera);
+            
+            const x = (pos.x * .5 + .5) * window.innerWidth;
+            const y = (-(pos.y * .5) + .5) * window.innerHeight;
+            
+            if (pos.z > 1) {
+                hpBars[pid].style.display = 'none';
+            } else {
+                hpBars[pid].style.display = 'block';
+                hpBars[pid].style.left = x + 'px';
+                hpBars[pid].style.top = y + 'px';
+            }
         }
     });
-}
-// Временный фикс, чтобы не ломать логику, просто передадим myId в animate, или сохраним глобально
-let globalMyId = null;
-
-function updateSingleBarPos(bar, mesh) {
-    if (!mesh) return;
-    const pos = mesh.position.clone();
-    pos.y += 2.0; // Высота над головой
-    
-    // Проецируем
-    pos.project(camera);
-    
-    const x = (pos.x * .5 + .5) * window.innerWidth;
-    const y = (-(pos.y * .5) + .5) * window.innerHeight;
-    
-    // Если сзади камеры - скрываем
-    if (pos.z > 1) {
-        bar.style.display = 'none';
-    } else {
-        bar.style.display = 'block';
-        bar.style.left = x + 'px';
-        bar.style.top = y + 'px';
-    }
 }
 
 function createRemotePlayer(pid, charId) {
@@ -502,8 +470,8 @@ function createRemotePlayer(pid, charId) {
              otherPlayers[pid].activeAction = act;
         }
 
-        ['run', 'jump', 'punch', 'death'].forEach(anim => { // + death
-            let fName = anim === 'death' ? 'cock_dying' : `cock_${anim}`; // death файл называется иначе
+        ['run', 'jump', 'punch', 'death'].forEach(anim => {
+            let fName = anim === 'death' ? 'cock_dying' : `cock_${anim}`;
             loader.load(`assets/models/cock/${fName}.fbx`, (a) => {
                 if(a.animations[0]) {
                     const act = mixer.clipAction(a.animations[0]);
@@ -599,7 +567,6 @@ function loadMyPlayer(charId) {
         loadNext('assets/models/cock/cock_run.fbx', 'run', () => {
             loadNext('assets/models/cock/cock_jump.fbx', 'jump', () => {
                 loadNext('assets/models/cock/cock_punch.fbx', 'punch', () => {
-                    // Загружаем смерть
                      loadNext('assets/models/cock/cock_dying.fbx', 'death', () => {
                         update(myPlayerRef, { status: 'loaded' });
                      });
@@ -610,40 +577,28 @@ function loadMyPlayer(charId) {
 }
 
 function setupControls(roomId, userId) {
-    globalMyId = userId; // Сохраняем для обновления баров
-    
     let isDragging = false;
     
     window.addEventListener('mousedown', (e) => {
-        if(e.target.tagName !== 'BUTTON' && e.target.id !== 'custom-exit-btn') {
-            isDragging = true;
-        }
+        if(e.target.tagName !== 'BUTTON' && e.target.id !== 'custom-exit-btn') isDragging = true;
     });
-    
     window.addEventListener('mouseup', () => isDragging = false);
-    
     window.addEventListener('mousemove', (e) => {
-        if (isDragging && !isMobile) {
-            cameraAngle -= e.movementX * 0.005;
-        }
+        if (isDragging && !isMobile) cameraAngle -= e.movementX * 0.005;
     });
 
     window.addEventListener('keydown', (e) => {
-        if (isDead) return; // Мертвые не ходят
+        if (isDead) return;
         if(e.code === 'KeyW') keys.w = true;
         if(e.code === 'KeyS') keys.s = true;
         if(e.code === 'KeyA') keys.a = true;
         if(e.code === 'KeyD') keys.d = true;
         if(e.code === 'Space') triggerJump();
-        
-        // АТАКА (F)
         if(e.code === 'KeyF') {
             triggerPunch();
-            checkHit(roomId, userId); // Проверяем попадание
+            checkHit(roomId, userId);
         }
-        if(e.code === 'Escape') {
-            document.getElementById('close-fullscreen-btn')?.click();
-        }
+        if(e.code === 'Escape') document.getElementById('close-fullscreen-btn')?.click();
     });
 
     window.addEventListener('keyup', (e) => {
@@ -655,7 +610,6 @@ function setupControls(roomId, userId) {
 
     if (isMobile) {
         setupJoystick();
-        
         let lastTouchX = 0;
         const touchZone = document.getElementById('three-container');
         
@@ -688,28 +642,18 @@ function setupControls(roomId, userId) {
     }
 }
 
-// --- БОЕВАЯ СИСТЕМА ---
 function checkHit(roomId, myId) {
     if (!myPlayerModel || isDead) return;
-    
-    // Проверяем дистанцию до каждого врага
     Object.keys(otherPlayers).forEach(pid => {
         const enemy = otherPlayers[pid];
         if (enemy.mesh) {
             const dist = myPlayerModel.position.distanceTo(enemy.mesh.position);
-            // Также проверим угол (чтобы бить только перед собой)
             const dirToEnemy = new THREE.Vector3().subVectors(enemy.mesh.position, myPlayerModel.position).normalize();
             const myDir = new THREE.Vector3(0, 0, 1).applyQuaternion(myPlayerModel.quaternion).normalize();
-            const angle = myDir.angleTo(dirToEnemy); // в радианах
+            const angle = myDir.angleTo(dirToEnemy);
 
-            if (dist < PUNCH_RANGE && angle < 1.0) { // 1 радиан ~ 60 градусов конус
-                // ПОПАДАНИЕ!
-                // Считываем текущее HP врага (надо знать его)
-                // Но мы не храним HP локально в otherPlayers. 
-                // Придется делать транзакцию в Firebase
+            if (dist < PUNCH_RANGE && angle < 1.0) {
                 const enemyRef = ref(db, `rooms/${roomId}/brawl/players/${pid}/hp`);
-                // Используем runTransaction для атомарности
-                // Или просто get + set для простоты прототипа
                 get(enemyRef).then(snap => {
                     let currentHp = snap.val() || 0;
                     if (currentHp > 0) {
@@ -799,15 +743,12 @@ function animate() {
     });
 
     if (myPlayerModel && gameState === 'playing') {
-        // Обновляем позиции HP баров
         updateHpBarsPositions();
 
         if (isDead) {
-            // Если мертв, физика не нужна, просто падаем вниз если в воздухе
             if (!isGrounded) verticalVelocity += GRAVITY * delta;
             myPlayerModel.position.y += verticalVelocity * delta;
             if (myPlayerModel.position.y <= 0) myPlayerModel.position.y = 0;
-            // Камеру оставляем
         } else {
             let moveX = 0, moveZ = 0;
             if(keys.w) moveZ = -1;
@@ -834,7 +775,6 @@ function animate() {
                  verticalVelocity = 0;
             }
 
-            // --- ДВИЖЕНИЕ ---
             if ((moveX !== 0 || moveZ !== 0) && !isPunching) {
                 const inputVector = new THREE.Vector3(moveX, 0, moveZ).normalize();
                 inputVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
@@ -854,7 +794,6 @@ function animate() {
             }
         }
 
-        // --- КАМЕРА (Привязана к игроку даже после смерти, режим наблюдателя) ---
         const offsetX = Math.sin(cameraAngle) * CAM_DISTANCE;
         const offsetZ = Math.cos(cameraAngle) * CAM_DISTANCE;
 
