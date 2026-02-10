@@ -1,7 +1,6 @@
 import { db, ref, update, onValue, off, set, remove } from '../../js/firebase-config.js';
 
-// --- ИСПРАВЛЕНИЕ ОШИБКИ ЗАГРУЗКИ ---
-// Используем прямые ссылки, чтобы телефон точно их увидел
+// Используем прямые ссылки (надежнее для мобилок)
 import * as THREE from 'https://esm.sh/three@0.160.0';
 import { FBXLoader } from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/FBXLoader';
 
@@ -23,23 +22,32 @@ export function initGame(container, _roomId, _userId, isHost) {
     myId = _userId;
     clock = new THREE.Clock(); 
 
-    // Добавляем экран поворота в HTML
+    // Вставляем HTML структуру
+    // Обрати внимание: добавлен id="custom-exit-btn"
     container.innerHTML = `
         <div id="rotate-warning">
             <div class="rotate-icon">📱 ➔ 📺</div>
-            <p>Пожалуйста, поверните устройство<br>горизонтально для игры</p>
+            <p>Поверни телефон горизонтально!</p>
         </div>
 
         <div id="brawl-container">
             <div id="game-ui">
-                <div style="position:absolute; top:10px; left:10px; color:white; font-family:sans-serif; text-shadow:1px 1px 0 #000; pointer-events:none;">
-                    <b>Brawl Mode</b><br>
-                    <span id="loading-text">Загрузка ресурсов...</span>
+                <div id="custom-exit-btn">✕</div>
+                <div id="loading-text">Загрузка мира...</div>
+                
+                <div id="joystick-zone">
+                    <div id="joystick-nub"></div>
                 </div>
-                <div id="joystick-zone"></div>
             </div>
         </div>
     `;
+
+    // Привязываем кнопку выхода
+    document.getElementById('custom-exit-btn').addEventListener('click', () => {
+        // Эмулируем нажатие на "Свернуть" из главного меню
+        const mainCloseBtn = document.getElementById('close-fullscreen-btn');
+        if (mainCloseBtn) mainCloseBtn.click();
+    });
 
     initThreeJS();
     setupControls();
@@ -50,72 +58,81 @@ function initThreeJS() {
     const gameDiv = document.getElementById('brawl-container');
     if (!gameDiv) return;
 
-    // СЦЕНА
+    // 1. СЦЕНА
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x2b2b35);
-    scene.fog = new THREE.Fog(0x2b2b35, 1, 30);
+    scene.background = new THREE.Color(0x1a1a1a); // Чуть светлее фон
+    scene.fog = new THREE.Fog(0x1a1a1a, 5, 40);
 
-    // КАМЕРА
-    camera = new THREE.PerspectiveCamera(60, gameDiv.clientWidth / gameDiv.clientHeight, 0.1, 1000);
+    // 2. КАМЕРА
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1.4, 1.8);
     camera.lookAt(0, 0.8, 0);
 
-    // РЕНДЕРЕР
+    // 3. РЕНДЕРЕР
     renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(gameDiv.clientWidth, gameDiv.clientHeight);
+    renderer.setSize(window.innerWidth, window.innerHeight); // На весь экран
     renderer.shadowMap.enabled = true;
+    renderer.outputColorSpace = THREE.SRGBColorSpace; // Правильные цвета
     gameDiv.appendChild(renderer.domElement);
 
-    // СВЕТ
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+    // 4. СВЕТ (Сделаем поярче для телефона)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
     scene.add(ambientLight);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
-    dirLight.position.set(3, 8, 5);
+    dirLight.position.set(5, 10, 5);
     dirLight.castShadow = true;
     scene.add(dirLight);
 
-    // ПОЛ
-    const floorGeo = new THREE.PlaneGeometry(60, 60);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+    // 5. ПОЛ
+    const floorGeo = new THREE.PlaneGeometry(100, 100);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
     
-    const grid = new THREE.GridHelper(60, 60, 0x555555, 0x222222);
+    const grid = new THREE.GridHelper(100, 100, 0x444444, 0x111111);
     scene.add(grid);
 
-    // ЗАГРУЗКА
+    // 6. ЗАГРУЗКА РЕСУРСОВ
     const textureLoader = new THREE.TextureLoader();
     const loader = new FBXLoader();
 
-    // !!! ПРОВЕРЬ ИМЯ ФАЙЛА КАРТИНКИ В ПАПКЕ assets/models !!!
-    // Например: 'assets/models/Cock_Texture.png' или 'assets/models/texture.jpg'
-    // Если картинка не загрузится, модель будет черной, но игра не вылетит.
-    const texture = textureLoader.load('assets/models/Poly_Cock_01.png', 
-        () => console.log("Текстура загружена"),
+    // !!! ВАЖНО: Укажи ТОЧНОЕ имя файла текстуры (с учетом регистра!) !!!
+    const textureUrl = 'assets/models/Poly_Cock_01.png'; 
+
+    const texture = textureLoader.load(textureUrl, 
+        () => console.log("Текстура OK"),
         undefined,
-        (err) => console.log("Ошибка текстуры (модель будет черной)", err)
+        (err) => console.warn("Текстура не найдена, будет серый цвет")
     );
 
     loader.load('assets/models/cock.fbx', 
         (object) => {
-            console.log("Модель загружена");
-            const loadingText = document.getElementById('loading-text');
-            if (loadingText) loadingText.textContent = "Готово!";
+            const loadText = document.getElementById('loading-text');
+            if (loadText) loadText.style.display = 'none'; // Скрываем текст
 
             myPlayerModel = object;
+
+            // Разворот (если нужно)
+            // myPlayerModel.rotation.y = Math.PI; 
 
             myPlayerModel.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
-                    // Применяем текстуру
+                    
                     if (child.material) {
-                         child.material.map = texture;
-                         child.material.needsUpdate = true;
-                         child.material.shininess = 0; 
+                        // Если текстура загрузилась - применяем, если нет - ставим серый цвет
+                        if (texture && texture.image) {
+                            child.material.map = texture;
+                        } else {
+                            child.material.color.setHex(0xaaaaaa); // Серый цвет
+                        }
+                        
+                        child.material.shininess = 0; // Матовый
+                        child.material.needsUpdate = true;
                     }
                 }
             });
@@ -128,14 +145,17 @@ function initThreeJS() {
                 mixer = new THREE.AnimationMixer(myPlayerModel);
                 runAction = mixer.clipAction(object.animations[0]);
                 runAction.play(); 
-                runAction.paused = true; // Стоим по умолчанию
+                runAction.paused = true; 
             }
         },
-        undefined,
+        (xhr) => {
+            const loadText = document.getElementById('loading-text');
+            if (loadText) loadText.innerText = `Загрузка: ${Math.round(xhr.loaded / xhr.total * 100)}%`;
+        },
         (error) => {
             console.error(error);
-            const loadingText = document.getElementById('loading-text');
-            if (loadingText) loadingText.textContent = "Ошибка загрузки FBX";
+            const loadText = document.getElementById('loading-text');
+            if (loadText) loadText.innerText = "Ошибка загрузки :(";
         }
     );
 
@@ -157,33 +177,50 @@ function setupControls() {
         if (e.key === 'd') keys.d = false;
     });
 
-    // ТЕЛЕФОН (Джойстик)
+    // ТЕЛЕФОН (Улучшенный джойстик)
     const zone = document.getElementById('joystick-zone');
-    if (!zone) return;
+    const nub = document.getElementById('joystick-nub');
+    if (!zone || !nub) return;
 
     let touchId = null;
     let startX, startY;
+    const maxRadius = 50; // Радиус движения пипки
 
     zone.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        // Берем только первый палец, коснувшийся джойстика
         const touch = e.changedTouches[0]; 
         touchId = touch.identifier;
         startX = touch.clientX;
         startY = touch.clientY;
         joystick = { x: 0, y: 0 };
+        
+        // Визуальный эффект нажатия
+        nub.style.transition = 'none';
+        nub.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
     }, { passive: false });
 
     zone.addEventListener('touchmove', (e) => {
         e.preventDefault();
-        // Ищем наш палец
         for (let i = 0; i < e.changedTouches.length; i++) {
             if (e.changedTouches[i].identifier === touchId) {
                 const touch = e.changedTouches[i];
-                const dx = touch.clientX - startX;
-                const dy = touch.clientY - startY;
-                joystick.x = Math.max(-1, Math.min(1, dx / 40)); 
-                joystick.y = Math.max(-1, Math.min(1, dy / 40));
+                let dx = touch.clientX - startX;
+                let dy = touch.clientY - startY;
+                
+                // Ограничиваем движение пипки кругом
+                const distance = Math.sqrt(dx*dx + dy*dy);
+                if (distance > maxRadius) {
+                    const ratio = maxRadius / distance;
+                    dx *= ratio;
+                    dy *= ratio;
+                }
+
+                // Двигаем пипку
+                nub.style.transform = `translate(${dx}px, ${dy}px)`;
+
+                // Передаем данные в игру (-1 до 1)
+                joystick.x = dx / maxRadius;
+                joystick.y = dy / maxRadius;
                 break;
             }
         }
@@ -191,11 +228,14 @@ function setupControls() {
 
     zone.addEventListener('touchend', (e) => {
         e.preventDefault();
-        // Если подняли "наш" палец - сброс
         for (let i = 0; i < e.changedTouches.length; i++) {
             if (e.changedTouches[i].identifier === touchId) {
                 joystick = { x: 0, y: 0 };
                 touchId = null;
+                // Возвращаем пипку в центр
+                nub.style.transition = 'transform 0.2s';
+                nub.style.transform = `translate(0px, 0px)`;
+                nub.style.backgroundColor = 'rgba(255, 255, 255, 0.5)';
                 break;
             }
         }
@@ -203,14 +243,10 @@ function setupControls() {
 }
 
 function onWindowResize() {
-    if (!camera || !renderer || !containerEl) return;
-    const gameDiv = document.getElementById('brawl-container');
-    // Если игра скрыта (портретный режим), размер может быть 0, игнорируем
-    if (!gameDiv || gameDiv.clientHeight === 0) return;
-    
-    camera.aspect = gameDiv.clientWidth / gameDiv.clientHeight;
+    if (!camera || !renderer) return;
+    camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(gameDiv.clientWidth, gameDiv.clientHeight);
+    renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
 function animate() {
@@ -225,7 +261,8 @@ function animate() {
     if (keys.a) moveX = -1;
     if (keys.d) moveX = 1;
 
-    if (joystick.x !== 0 || joystick.y !== 0) {
+    // Джойстик имеет приоритет
+    if (Math.abs(joystick.x) > 0.1 || Math.abs(joystick.y) > 0.1) {
         moveX = joystick.x;
         moveZ = joystick.y;
     }
@@ -233,13 +270,17 @@ function animate() {
     const isMoving = (moveX !== 0 || moveZ !== 0);
 
     if (myPlayerModel && isMoving) {
-        const speed = 5 * delta;
+        const speed = 6 * delta; // Скорость бега
         myPlayerModel.position.x += moveX * speed;
         myPlayerModel.position.z += moveZ * speed;
 
         const angle = Math.atan2(moveX, moveZ);
-        myPlayerModel.rotation.y = angle;
+        // Плавный поворот
+        const targetRotation = angle;
+        // Простой поворот (можно улучшить lerp-ом)
+        myPlayerModel.rotation.y = targetRotation;
 
+        // Камера следует за игроком
         camera.position.x = myPlayerModel.position.x;
         camera.position.z = myPlayerModel.position.z + 1.8;
         camera.lookAt(myPlayerModel.position.x, 0.8, myPlayerModel.position.z);
@@ -258,8 +299,6 @@ function animate() {
 export function cleanupGame() {
     cancelAnimationFrame(animationId);
     window.removeEventListener('resize', onWindowResize);
-    window.onkeydown = null;
-    window.onkeyup = null;
     if (renderer) renderer.dispose();
     if (containerEl) containerEl.innerHTML = '';
 }
