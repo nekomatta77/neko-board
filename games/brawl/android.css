@@ -1,4 +1,4 @@
-/* СБРОС ВСЕГО ЛИШНЕГО */
+/* СБРОС */
 body, html {
     width: 100%;
     height: 100%;
@@ -6,65 +6,59 @@ body, html {
     padding: 0;
     overflow: hidden;
     background-color: #000;
-    touch-action: none; /* Запрет скролла пальцем */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
-/* 1. ГЛАВНЫЙ КОНТЕЙНЕР ИГРЫ */
-/* Z-index 9000 перекроет шапку "БРАВЛ" и всё остальное */
+/* 1. ГЛАВНЫЙ КОНТЕЙНЕР */
 #brawl-container {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
     background: #111;
     z-index: 9000; 
 }
 
 canvas {
     display: block;
-    width: 100% !important;
-    height: 100% !important;
+    width: 100% !important; height: 100% !important;
     outline: none;
 }
 
-/* 2. ИНТЕРФЕЙС ИГРЫ (UI) */
+/* 2. ИНТЕРФЕЙС (UI) */
 #game-ui {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    pointer-events: none; /* Клики проходят сквозь интерфейс */
+    pointer-events: none;
     z-index: 9001;
 }
 
-/* Кнопка выхода (Своя собственная, поверх игры) */
+/* Кнопка выхода */
 #custom-exit-btn {
     position: absolute;
-    top: 15px;
-    right: 15px;
-    width: 40px;
-    height: 40px;
+    top: 15px; right: 15px;
+    width: 40px; height: 40px;
     background: rgba(255, 0, 0, 0.5);
     border: 2px solid rgba(255,255,255,0.5);
     border-radius: 8px;
     color: white;
     font-weight: bold;
     font-size: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     pointer-events: auto;
     backdrop-filter: blur(4px);
 }
 
-/* Джойстик */
+/* --- НОВЫЙ МАЛЕНЬКИЙ ДЖОЙСТИК --- */
 #joystick-zone {
     position: absolute;
-    bottom: 30px;
-    left: 30px;
-    width: 150px;
-    height: 150px;
-    background: rgba(255, 255, 255, 0.1);
+    bottom: 30px; left: 30px;
+    /* БЫЛО: 150px -> СТАЛО: 100px */
+    width: 100px;
+    height: 100px;
+    background: rgba(255, 255, 255, 0.15);
     border: 2px solid rgba(255, 255, 255, 0.2);
     border-radius: 50%;
     pointer-events: auto;
@@ -73,60 +67,58 @@ canvas {
     align-items: center;
 }
 
-/* "Пипка" джойстика (визуальная) */
 #joystick-nub {
-    width: 50px;
-    height: 50px;
-    background: rgba(255, 255, 255, 0.5);
+    /* БЫЛО: 50px -> СТАЛО: 35px */
+    width: 35px;
+    height: 35px;
+    background: rgba(255, 255, 255, 0.6);
     border-radius: 50%;
-    transform: translate(0px, 0px); /* Будет двигаться JS-ом */
     pointer-events: none;
+    backdrop-filter: blur(5px);
 }
 
-/* Текст загрузки */
-#loading-text {
+/* --- ЭКРАН СТАРТА (ДЛЯ ФУЛСКРИНА) --- */
+#start-screen {
     position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    color: white;
-    font-family: monospace;
-    font-size: 18px;
-    background: rgba(0,0,0,0.7);
-    padding: 10px 20px;
-    border-radius: 10px;
-}
-
-/* 3. ЭКРАН ПОВОРОТА (Только для Портретного режима) */
-#rotate-warning {
-    display: none; /* По умолчанию скрыт */
-    position: fixed;
     top: 0; left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: #000;
-    z-index: 99999; /* Самый верхний слой */
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85);
+    display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    z-index: 9999;
+    pointer-events: auto;
+}
+
+#fullscreen-btn {
+    background: #6200ea;
     color: white;
-    font-family: sans-serif;
-    text-align: center;
+    border: none;
+    padding: 15px 30px;
+    font-size: 18px;
+    border-radius: 12px;
+    font-weight: bold;
+    box-shadow: 0 4px 15px rgba(98, 0, 234, 0.5);
 }
 
-.rotate-icon {
-    font-size: 60px;
-    margin-bottom: 20px;
-    animation: spin-phone 2s infinite ease-in-out;
+/* ПОВОРОТ */
+#rotate-warning {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: #000;
+    z-index: 100000;
+    flex-direction: column;
+    justify-content: center; align-items: center;
+    color: white; font-family: sans-serif; text-align: center;
 }
 
-@keyframes spin-phone {
-    0% { transform: rotate(0deg); }
-    50% { transform: rotate(-90deg); }
-    100% { transform: rotate(0deg); }
-}
+.rotate-icon { font-size: 60px; margin-bottom: 20px; animation: spin 2s infinite; }
+@keyframes spin { 0% {transform: rotate(0deg);} 50% {transform: rotate(-90deg);} 100% {transform: rotate(0deg);} }
 
-/* МАГИЯ CSS: Если высота больше ширины (Телефон вертикально) */
 @media (max-aspect-ratio: 1/1) {
-    #rotate-warning { display: flex !important; } /* Показываем варнинг */
-    #brawl-container { display: none !important; } /* Скрываем игру */
+    #rotate-warning { display: flex !important; }
+    #brawl-container { display: none !important; }
 }
