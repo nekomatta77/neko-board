@@ -1,7 +1,34 @@
 import { db, ref, set, push, onValue, update, remove, child, get } from './firebase-config.js';
 import { startChat, stopChat } from './chat.js';
 
-// DOM Элементы
+// --- 1. ОПРЕДЕЛЕНИЕ ПЛАТФОРМЫ И ЗАГРУЗКА СТИЛЕЙ ---
+const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+const currentPlatform = isIos ? 'iphone' : (isMobile ? 'android' : 'pc');
+
+function loadPlatformStyles() {
+    const files = ['main', 'menu', 'lobby', 'game', 'chat'];
+    files.forEach(file => {
+        let link = document.querySelector(`link[href*="/${file}.css"]`) || document.querySelector(`link[href$="${file}.css"]`);
+        if (!link) {
+            link = document.createElement('link');
+            link.rel = 'stylesheet';
+            document.head.appendChild(link);
+        }
+        link.href = `css/${currentPlatform}/${file}.css`;
+    });
+}
+loadPlatformStyles();
+
+// --- 2. ГЕНЕРАЦИЯ И СОХРАНЕНИЕ ID (ИСПРАВЛЕНИЕ ОШИБКИ) ---
+// Пытаемся найти сохраненный ID. Если нет — создаем и сохраняем навсегда.
+let myUserId = localStorage.getItem('neko_user_id');
+if (!myUserId) {
+    myUserId = 'user_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('neko_user_id', myUserId);
+}
+
+// --- DOM ЭЛЕМЕНТЫ ---
 const authScreen = document.getElementById('auth-screen');
 const lobbyScreen = document.getElementById('lobby-screen');
 const gameScreen = document.getElementById('game-screen');
@@ -16,7 +43,6 @@ const leaveGameBtn = document.getElementById('leave-game-btn');
 const roomIdDisplay = document.getElementById('room-id-display');
 const playersContainer = document.getElementById('players-container');
 
-// Аватар
 const currentAvatarImg = document.getElementById('current-avatar-img');
 const nextAvatarBtn = document.getElementById('next-avatar-btn');
 const prevAvatarBtn = document.getElementById('prev-avatar-btn');
@@ -31,17 +57,33 @@ const fullscreenMount = document.getElementById('fullscreen-game-mount');
 // Состояние
 let currentUser = null;
 let currentAvatarId = 1;
-let myUserId = 'user_' + Math.random().toString(36).substr(2, 9);
 let currentRoomId = null;
 let amIHost = false;
 let activeGameCleanup = null;
+let roomListener = null;
+
+// --- ВОССТАНОВЛЕНИЕ ДАННЫХ ПРИ ВХОДЕ ---
+window.addEventListener('DOMContentLoaded', () => {
+    const savedName = localStorage.getItem('neko_username');
+    const savedAva = localStorage.getItem('neko_avatar');
+    
+    if (savedName) usernameInput.value = savedName;
+    if (savedAva) {
+        currentAvatarId = parseInt(savedAva);
+        currentAvatarImg.src = `assets/avatars/ava${currentAvatarId}.png`;
+    }
+});
 
 // --- УВЕДОМЛЕНИЯ ---
 function showNotification(message, type = 'info') {
+    let container = document.getElementById('notification-container');
+    if (!container) return; 
+
     const notif = document.createElement('div');
     notif.className = `notification ${type}`;
     notif.textContent = message;
-    notificationContainer.appendChild(notif);
+    container.appendChild(notif);
+    
     requestAnimationFrame(() => notif.classList.add('show'));
     setTimeout(() => {
         notif.classList.remove('show');
@@ -58,6 +100,7 @@ function changeAvatar(direction) {
     if (currentAvatarId > 20) currentAvatarId = 1;
     if (currentAvatarId < 1) currentAvatarId = 20;
     currentAvatarImg.src = `assets/avatars/ava${currentAvatarId}.png`;
+    
     const btn = direction === 1 ? nextAvatarBtn : prevAvatarBtn;
     btn.style.transform = "scale(0.8)";
     setTimeout(() => btn.style.transform = "scale(1)", 150);
@@ -68,21 +111,28 @@ loginBtn.addEventListener('click', () => {
     const username = usernameInput.value.trim();
     if (username) {
         currentUser = username;
-        userDisplay.innerHTML = `
-            <div class="profile-info">
-                <img src="assets/avatars/ava${currentAvatarId}.png" class="profile-avatar">
-                <div class="profile-text">
-                    <span class="profile-name">${currentUser}</span>
-                    <span class="profile-status">● Online</span>
-                </div>
-            </div>
-        `;
+        localStorage.setItem('neko_username', currentUser);
+        localStorage.setItem('neko_avatar', currentAvatarId);
+
+        updateProfileDisplay();
         showScreen(lobbyScreen);
         loadRooms();
     } else {
         showNotification('Пожалуйста, введите ник!', 'error');
     }
 });
+
+function updateProfileDisplay() {
+    userDisplay.innerHTML = `
+        <div class="profile-info">
+            <img src="assets/avatars/ava${currentAvatarId}.png" class="profile-avatar">
+            <div class="profile-text">
+                <span class="profile-name">${currentUser}</span>
+                <span class="profile-status">● Online</span>
+            </div>
+        </div>
+    `;
+}
 
 // --- СОЗДАНИЕ КОМНАТЫ ---
 createGameBtn.addEventListener('click', () => {
@@ -122,17 +172,31 @@ function loadRooms() {
         Object.keys(data).forEach(key => {
             const room = data[key];
             const playersCount = room.players ? Object.keys(room.players).length : 0;
-            if (room.status === "waiting") { // Показываем только если статус waiting
+            
+            // Проверка: я внутри этой комнаты?
+            const amIIn = room.players && room.players[myUserId];
+
+            // Показываем комнату если она "ждет" ИЛИ если мы уже в ней (реконнект)
+            if (room.status === "waiting" || amIIn) { 
                 const roomEl = document.createElement('div');
                 roomEl.className = 'room-card';
+                
                 let hostAvatar = 1;
                 if (room.players) {
                     const hostPlayer = Object.values(room.players).find(p => p.isHost);
                     if (hostPlayer) hostAvatar = hostPlayer.avatar;
                 }
+                
                 const isFull = playersCount >= room.maxPlayers;
-                const btnText = isFull ? "Полная" : "Войти";
-                const btnClass = isFull ? "join-btn full" : "join-btn";
+                
+                // Текст кнопки меняется
+                let btnText = isFull ? "Полная" : "Войти";
+                let btnClass = isFull ? "join-btn full" : "join-btn";
+                
+                if (amIIn) {
+                    btnText = "Вернуться"; // Если мы уже там
+                    btnClass = "join-btn"; // Кнопка активна
+                }
 
                 roomEl.innerHTML = `
                     <div class="room-info">
@@ -142,9 +206,10 @@ function loadRooms() {
                             <small>Игроки: ${playersCount} / ${room.maxPlayers}</small>
                         </div>
                     </div>
-                    <button class="${btnClass}" ${isFull ? 'disabled' : ''}>${btnText}</button>
+                    <button class="${btnClass}" ${(!amIIn && isFull) ? 'disabled' : ''}>${btnText}</button>
                 `;
-                if (!isFull) {
+                
+                if (amIIn || !isFull) {
                     roomEl.querySelector('.join-btn').addEventListener('click', () => joinRoom(key, room.maxPlayers));
                 }
                 roomsList.appendChild(roomEl);
@@ -156,10 +221,31 @@ function loadRooms() {
 function joinRoom(roomId, maxPlayers) {
     get(ref(db, `rooms/${roomId}/players`)).then((snapshot) => {
         const players = snapshot.val() || {};
+        
+        // 1. ИСПРАВЛЕНИЕ: Если мы уже в комнате (по ID), просто обновляем данные
+        if (players[myUserId]) {
+            const existingData = players[myUserId];
+            
+            // Обновляем ник и аватар (вдруг сменили), но статус хоста оставляем старый
+            update(ref(db, `rooms/${roomId}/players/${myUserId}`), {
+                name: currentUser,
+                avatar: currentAvatarId
+            }).then(() => {
+                currentRoomId = roomId;
+                amIHost = existingData.isHost; // Восстанавливаем права хоста
+                enterGameScreen(roomId);
+                showNotification('С возвращением!');
+            });
+            return;
+        }
+
+        // 2. Если нас нет и комната полная
         if (Object.keys(players).length >= maxPlayers) {
             showNotification("Комната уже заполнена!", "error");
             return;
         }
+
+        // 3. Заходим как новый игрок
         const myPlayerData = { name: currentUser, avatar: currentAvatarId, isHost: false };
         update(ref(db, `rooms/${roomId}/players/${myUserId}`), myPlayerData)
             .then(() => {
@@ -172,7 +258,7 @@ function joinRoom(roomId, maxPlayers) {
     });
 }
 
-// --- ЭКРАН ИГРЫ (КОМНАТА) ---
+// --- ЭКРАН ИГРЫ ---
 function enterGameScreen(roomId) {
     showScreen(gameScreen);
     roomIdDisplay.textContent = `Комната`;
@@ -183,42 +269,48 @@ function enterGameScreen(roomId) {
 function subscribeToRoom(roomId) {
     const roomRef = ref(db, `rooms/${roomId}`);
     
-    onValue(roomRef, (snapshot) => {
+    if (roomListener) roomListener(); // Сброс старой подписки если была
+
+    roomListener = onValue(roomRef, (snapshot) => {
         const room = snapshot.val();
         
         // 1. Комната удалена
         if (!room) {
             if (currentRoomId === roomId) {
                 showNotification("Комната закрыта", "info");
-                handleLeave();
+                handleLeave(true);
             }
             return;
         }
 
-        // 2. Обновляем статус хоста
+        // 2. Нас кикнули? (Меня нет в списке)
+        if (room.players && !room.players[myUserId]) {
+             showNotification("Вы были исключены", "error");
+             handleLeave(true);
+             return;
+        }
+
+        // 3. Актуализируем статус хоста
         if (room.players && room.players[myUserId]) {
             amIHost = room.players[myUserId].isHost;
         }
 
-        // 3. ВАЖНО: Проверка старта игры ПЕРЕД всем остальным
-        // Если статус игра, и у нас еще не открыт fullscreen с этой игрой
+        // 4. Старт игры / Синхронизация
         if (room.status && room.status.startsWith('playing_')) {
             const gameName = room.status.split('_')[1];
             if (fullscreenOverlay.classList.contains('hidden') || fullscreenMount.getAttribute('data-game') !== gameName) {
                 loadGameModule(gameName);
             }
-            // Не делаем return, чтобы список игроков в лобби (под оверлеем) тоже обновлялся
         } else {
-             // Если статус waiting, но оверлей открыт -> закрываем его (рестарт в меню)
              if (!fullscreenOverlay.classList.contains('hidden')) {
                  closeFullscreenGame();
              }
         }
 
-        // 4. Рисуем игроков
+        // 5. Рендер игроков
         renderPlayersList(room.players);
 
-        // 5. Рисуем меню выбора (только если не играем)
+        // 6. Меню выбора (для хоста)
         const count = Object.keys(room.players).length;
         const selectionArea = document.getElementById('game-selection-area');
         
@@ -239,27 +331,43 @@ function subscribeToRoom(roomId) {
 function renderPlayersList(playersObj) {
     playersContainer.innerHTML = '';
     if (!playersObj) return;
-    Object.values(playersObj).forEach(player => {
+    
+    Object.entries(playersObj).forEach(([pid, player]) => {
         const el = document.createElement('div');
         el.className = 'player-slot';
+        
+        let kickButtonHtml = '';
+        // Кнопка кика: видит только хост, нельзя кикнуть себя
+        if (amIHost && pid !== myUserId) {
+            kickButtonHtml = `<button class="kick-btn" onclick="kickPlayer('${pid}')" title="Выгнать">×</button>`;
+        }
+
         el.innerHTML = `
             <div class="avatar-wrapper">
                 <img src="assets/avatars/ava${player.avatar}.png">
             </div>
             <span class="player-name">${player.name}</span>
             ${player.isHost ? '<span class="host-badge">👑</span>' : ''}
+            ${kickButtonHtml}
         `;
         playersContainer.appendChild(el);
     });
 }
 
-// --- МЕНЮ ВЫБОРА ИГР (КРАСИВОЕ) ---
+// Глобальная функция для кика
+window.kickPlayer = function(playerId) {
+    if (!currentRoomId || !amIHost) return;
+    if (confirm("Исключить игрока?")) {
+        remove(ref(db, `rooms/${currentRoomId}/players/${playerId}`));
+    }
+}
+
+// --- МЕНЮ ВЫБОРА ИГР ---
 function renderGameMenu(container) {
     container.innerHTML = `
         <div id="game-selector" class="game-selector">
             <h3>Выберите игру:</h3>
             <div class="games-grid-menu">
-                
                 <button class="game-card-btn tictac" onclick="startGameTrigger('tictac')">
                     <div class="game-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -269,7 +377,6 @@ function renderGameMenu(container) {
                     </div>
                     <span>Крестики-Нолики</span>
                 </button>
-
                 <button class="game-card-btn durak disabled">
                     <div class="game-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -279,7 +386,6 @@ function renderGameMenu(container) {
                     </div>
                     <span>Дурак (Скоро)</span>
                 </button>
-
             </div>
         </div>
     `;
@@ -290,53 +396,48 @@ window.startGameTrigger = function(gameName) {
     update(ref(db, `rooms/${currentRoomId}`), { status: `playing_${gameName}` });
 }
 
-// --- ДИНАМИЧЕСКАЯ ЗАГРУЗКА (FULLSCREEN) ---
+// --- ЗАГРУЗКА МОДУЛЯ ИГРЫ ---
 async function loadGameModule(gameName) {
-    // 1. Показываем оверлей
     fullscreenMount.innerHTML = '<div class="waiting-text">Загрузка...</div>';
     fullscreenMount.setAttribute('data-game', gameName);
     fullscreenOverlay.classList.remove('hidden');
     
-    // Меняем заголовок
     activeGameTitle.textContent = (gameName === 'tictac') ? "Крестики-Нолики" : "Игра";
 
-    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    const cssFile = isIos ? 'iphone.css' : 'android.css';
+    let gameCssFile = 'android.css';
+    if (currentPlatform === 'iphone') gameCssFile = 'iphone.css';
     
-    // Подключаем CSS
+    const oldCss = document.getElementById('game-module-css');
+    if (oldCss) oldCss.remove();
+
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = `games/${gameName}/${cssFile}`;
-    link.id = 'game-css';
+    link.href = `games/${gameName}/${gameCssFile}`;
+    link.id = 'game-module-css';
     document.head.appendChild(link);
 
     try {
         const gameModule = await import(`../games/${gameName}/${gameName}.js`);
         if (activeGameCleanup) activeGameCleanup();
         
-        // Рендерим игру
         gameModule.initGame(fullscreenMount, currentRoomId, myUserId, amIHost);
         activeGameCleanup = gameModule.cleanupGame;
 
     } catch (error) {
         console.error(error);
-        fullscreenMount.innerHTML = '<div class="waiting-text error">Ошибка игры</div>';
+        fullscreenMount.innerHTML = '<div class="waiting-text error">Ошибка загрузки игры</div>';
     }
 }
 
-// Кнопка "Свернуть/Выйти" в игре (только локально для хоста, либо сброс для всех)
 closeFullscreenBtn.addEventListener('click', () => {
-    // Если ты хост, ты сбрасываешь игру для всех
     if (amIHost && currentRoomId) {
         if(confirm("Завершить игру для всех?")) {
             update(ref(db, `rooms/${currentRoomId}`), { status: 'waiting' });
             closeFullscreenGame();
         }
     } else {
-        // Если гость - просто спрашиваем выход из комнаты?
-        if(confirm("Выйти из игры?")) {
-             // Логика выхода гостя
-             leaveGameBtn.click();
+        if(confirm("Свернуть игру?")) {
+             closeFullscreenGame();
         }
     }
 });
@@ -346,17 +447,13 @@ function closeFullscreenGame() {
     fullscreenMount.innerHTML = '';
     fullscreenMount.removeAttribute('data-game');
     
-    const gameCss = document.getElementById('game-css');
-    if (gameCss) gameCss.remove();
-
     if (activeGameCleanup) {
         activeGameCleanup();
         activeGameCleanup = null;
     }
 }
 
-
-// --- ВЫХОД ИЗ КОМНАТЫ ---
+// --- ВЫХОД ---
 leaveGameBtn.addEventListener('click', () => {
     if (currentRoomId) {
         const playerRef = ref(db, `rooms/${currentRoomId}/players/${myUserId}`);
@@ -373,8 +470,17 @@ leaveGameBtn.addEventListener('click', () => {
     handleLeave();
 });
 
-function handleLeave() {
+function handleLeave(forced = false) {
+    if (roomListener) { // Отписка при выходе
+        // В Firebase v9 onValue возвращает функцию отписки (unsubscribe)
+        // Но так как мы не сохраняем возврат onValue в переменную отписки корректно в некоторых версиях кода, 
+        // лучше использовать off() если мы использовали старый стиль, или вызывать сохраненную функцию.
+        // Здесь roomListener - это unsubscribe функция.
+        if (typeof roomListener === 'function') roomListener(); 
+        roomListener = null;
+    }
     currentRoomId = null;
+    amIHost = false;
     stopChat();
     closeFullscreenGame();
     showScreen(lobbyScreen);

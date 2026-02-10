@@ -35,6 +35,13 @@ export function startChat(roomId, username, avatarId) {
 
     // Привязываем событие клика (перезаписываем onclick, чтобы не дублировать слушатели)
     sendChatBtn.onclick = sendMessage;
+
+    // --- ДОБАВЛЕНО: Отправка по Enter ---
+    chatInput.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    };
 }
 
 /**
@@ -47,6 +54,7 @@ export function stopChat() {
     }
     _roomId = null;
     sendChatBtn.onclick = null; // Убираем клик
+    chatInput.onkeydown = null; // Убираем Enter
 }
 
 /**
@@ -63,6 +71,8 @@ function sendMessage() {
             avatar: _currentAvatarId
         });
         chatInput.value = '';
+        // Фокус остается в поле после отправки (удобно для ПК)
+        chatInput.focus();
     }
 }
 
