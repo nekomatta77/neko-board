@@ -10,23 +10,21 @@ const LOBBY_POSITIONS = [
     { x: 5, z: 2 }
 ];
 
-let lobbyPlayers = {}; // { pid: { mesh, charId, isSmoke } }
+let lobbyPlayers = {}; 
 const loader = new FBXLoader();
 const texLoader = new THREE.TextureLoader();
 let commonTexture = null;
 
-// Предзагрузка текстуры
 texLoader.load('assets/models/cock/texture.png', (t) => { 
     t.colorSpace = THREE.SRGBColorSpace; 
     commonTexture = t;
 });
 
-// ЭТА ФУНКЦИЯ ВЫЗЫВАЛА ОШИБКУ - ТЕПЕРЬ ОНА ЕСТЬ
 export function getLobbyHTML() {
     return `
-        <div id="lobby-status-text">ВЫБЕРИ БОЙЦА</div>
+        <div id="lobby-status-text">ОЖИДАНИЕ ИГРОКОВ...</div>
         
-        <button id="lobby-ready-btn" disabled>ГОТОВ</button>
+        <button id="lobby-ready-btn" style="display: none;">ГОТОВ</button>
         
         <div id="char-menu-modal" class="hidden">
             <h2 style="color:white; margin-bottom:30px">ВЫБОР ПЕРСОНАЖА</h2>
@@ -52,31 +50,59 @@ export function setupLobbyUI(myPlayerRef) {
     
     if (clickCatcher) {
         clickCatcher.onclick = () => {
-            modal.classList.remove('hidden');
+            // Открываем меню только если мы еще не готовы
+            const btn = document.getElementById('lobby-ready-btn');
+            if (!btn.classList.contains('ready-pressed')) {
+                modal.classList.remove('hidden');
+            }
         };
     }
 
-    // Глобальная функция для onclick в HTML
     window.confirmChar = (charId) => {
         modal.classList.add('hidden');
         update(myPlayerRef, { char: charId });
         
-        const btn = document.getElementById('lobby-ready-btn');
-        if (btn) {
-            btn.disabled = false;
-            btn.onclick = () => {
-                 btn.innerText = "ОЖИДАНИЕ...";
-                 btn.disabled = true;
-                 update(myPlayerRef, { isReady: true });
-            };
-        }
-        const status = document.getElementById('lobby-status-text');
-        if (status) status.innerText = "НАЖМИ ГОТОВ";
+        // Кнопку здесь НЕ включаем, ждем пока все выберут (в updateLobbyVisuals)
     };
+
+    // Логика нажатия кнопки Готов
+    const btn = document.getElementById('lobby-ready-btn');
+    if (btn) {
+        btn.onclick = () => {
+            btn.innerText = "ОЖИДАНИЕ...";
+            btn.classList.add('ready-pressed'); // Флаг что нажата
+            btn.disabled = true;
+            update(myPlayerRef, { isReady: true });
+        };
+    }
 }
 
 export function updateLobbyVisuals(scene, playersData, myId) {
-    // Очистка удаленных
+    // 1. Проверяем, все ли выбрали персонажа
+    const allPlayers = Object.values(playersData);
+    const allSelected = allPlayers.every(p => p.char);
+    
+    const btn = document.getElementById('lobby-ready-btn');
+    const status = document.getElementById('lobby-status-text');
+
+    if (allSelected) {
+        // Если все выбрали -> Показываем кнопку
+        if (btn && !btn.classList.contains('ready-pressed')) { // Если еще не нажали
+            btn.style.display = 'block';
+            btn.disabled = false;
+        }
+        if (status) status.innerText = "НАЖМИ ГОТОВ";
+    } else {
+        // Если кто-то еще не выбрал
+        if (btn) btn.style.display = 'none';
+        
+        const myData = playersData[myId];
+        if (status) {
+            status.innerText = myData.char ? "ЖДЕМ ОСТАЛЬНЫХ..." : "ВЫБЕРИ БОЙЦА";
+        }
+    }
+
+    // 2. Рендер моделек
     Object.keys(lobbyPlayers).forEach(pid => {
         if (!playersData[pid]) {
             if(lobbyPlayers[pid].mesh) scene.remove(lobbyPlayers[pid].mesh);
@@ -85,13 +111,9 @@ export function updateLobbyVisuals(scene, playersData, myId) {
     });
 
     const otherIds = Object.keys(playersData).filter(pid => pid !== myId);
-    
-    // 1. Обновляем меня (Центр)
-    updateSingleLobbyChar(scene, myId, playersData[myId], 0);
-
-    // 2. Обновляем остальных (По краям)
+    updateSingleLobbyChar(scene, myId, playersData[myId], 0); // Я
     otherIds.forEach((pid, index) => {
-        updateSingleLobbyChar(scene, pid, playersData[pid], index + 1);
+        updateSingleLobbyChar(scene, pid, playersData[pid], index + 1); // Другие
     });
 }
 
@@ -103,7 +125,7 @@ function updateSingleLobbyChar(scene, pid, pData, posIndex) {
     }
     const localP = lobbyPlayers[pid];
 
-    // Если персонаж не выбран -> ДЫМОК
+    // Если нет персонажа -> ДЫМОК
     if (!pData.char) {
         if (localP.charId !== 'smoke') {
             if (localP.mesh) scene.remove(localP.mesh);
@@ -114,12 +136,11 @@ function updateSingleLobbyChar(scene, pid, pData, posIndex) {
             });
         }
     } 
-    // Если выбран -> МОДЕЛЬ
+    // Если есть персонаж -> МОДЕЛЬ
     else {
         if (localP.charId !== pData.char) {
             if (localP.mesh) scene.remove(localP.mesh);
             
-            // Загружаем модель
             loader.load('assets/models/cock/cock_wait.fbx', (fbx) => {
                 fbx.scale.set(0.01, 0.01, 0.01);
                 fbx.position.set(pos.x, 0, pos.z);
@@ -137,7 +158,6 @@ function updateSingleLobbyChar(scene, pid, pData, posIndex) {
                     const action = mixer.clipAction(fbx.animations[0]);
                     action.play();
                 }
-                
                 fbx.userData.mixer = mixer;
 
                 scene.add(fbx);
@@ -151,10 +171,7 @@ function updateSingleLobbyChar(scene, pid, pData, posIndex) {
 function createSmoke(pos, cb) {
     const geometry = new THREE.DodecahedronGeometry(1.5, 0);
     const material = new THREE.MeshStandardMaterial({ 
-        color: 0x888888, 
-        transparent: true, 
-        opacity: 0.8,
-        roughness: 0.5 
+        color: 0x888888, transparent: true, opacity: 0.8, roughness: 0.5 
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(pos.x, 1.5, pos.z);
@@ -166,12 +183,9 @@ export function animateLobby(delta) {
     Object.values(lobbyPlayers).forEach(p => {
         if (p.mesh) {
             if (p.mesh.userData.isSmoke) {
-                p.mesh.rotation.x += delta;
-                p.mesh.rotation.y += delta;
+                p.mesh.rotation.x += delta; p.mesh.rotation.y += delta;
             }
-            if (p.mesh.userData.mixer) {
-                p.mesh.userData.mixer.update(delta);
-            }
+            if (p.mesh.userData.mixer) p.mesh.userData.mixer.update(delta);
         }
     });
 }

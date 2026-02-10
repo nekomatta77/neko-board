@@ -2,19 +2,17 @@ import { db, ref, update, onValue, set, remove, get } from '../../js/firebase-co
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import { FBXLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/FBXLoader.js';
 
-// Импортируем логику Лобби
 import * as Lobby from './lobby.js';
 
-// --- КОНСТАНТЫ ИГРЫ ---
+// --- КОНСТАНТЫ ---
 const SPAWN_POINTS = [
     { x: 0, z: 0 }, { x: 5, z: 5 }, { x: -5, z: -5 }, { x: 5, z: -5 }, { x: -5, z: 5 }
 ];
 const GRAVITY = -30;
 const JUMP_FORCE = 12;
 const SPEED = 6;
-const SYNC_RATE = 30; // ms
+const SYNC_RATE = 30; 
 
-// Камера Лобби vs Игра
 const LOBBY_CAM_POS = { x: 0, y: 3, z: 6 };
 const GAME_CAM_DIST = 4.0;
 const GAME_CAM_HEIGHT = 2.5;
@@ -23,22 +21,19 @@ const MAX_HP = 100;
 const PUNCH_DAMAGE = 10;
 const PUNCH_RANGE = 2.5;
 
-// --- ПЕРЕМЕННЫЕ ---
 let scene, camera, renderer, clock;
-let myPlayerModel, mixer; // Мой персонаж (в игре)
-let otherPlayers = {};    // Другие персонажи (в игре)
-let actions = {};
-let activeAction = null;
+let myPlayerModel, mixer;
+let otherPlayers = {}; 
+let actions = {}; 
+let activeAction = null; 
 let hpBars = {};
 
-// Управление
 let joystick = { x: 0, y: 0 };
 let keys = { w: false, a: false, s: false, d: false, space: false };
 let isGrounded = true, verticalVelocity = 0, isPunching = false, isDead = false;
 let cameraAngle = Math.PI;
 
-// Состояние
-let gameState = 'lobby'; // 'lobby' | 'playing'
+let gameState = 'lobby'; 
 let roomRef, myPlayerRef;
 let unsubscribePlayers = null;
 let syncInterval = null;
@@ -46,7 +41,6 @@ let currentMyId = null;
 
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || navigator.maxTouchPoints > 0;
 
-// --- CSS ---
 function injectStyles() {
     const styleId = 'brawl-main-styles';
     if (document.getElementById(styleId)) return;
@@ -60,23 +54,29 @@ function injectStyles() {
         #brawl-ui > * { pointer-events: auto; }
         .hidden { display: none !important; }
         
-        /* Стили лобби (из lobby.js) */
+        /* ЛОББИ СТИЛИ */
         #lobby-status-text {
             position: absolute; top: 20px; width: 100%; text-align: center;
             font-size: 24px; color: white; text-transform: uppercase; letter-spacing: 2px;
             text-shadow: 0 2px 5px black;
+            z-index: 20;
         }
+        
+        /* ВАЖНО: z-index 100, чтобы быть выше click-catcher (у которого 10) */
         #lobby-ready-btn {
             position: absolute; bottom: 30px; right: 30px;
             padding: 15px 40px; background: #00E676; color: #003300;
             font-size: 20px; font-weight: bold; border: none; border-radius: 10px;
             cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            z-index: 100; 
         }
         #lobby-ready-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
         
+        /* Модалка выше всего */
         #char-menu-modal {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); z-index: 50;
+            background: rgba(0,0,0,0.8); 
+            z-index: 200; /* Выше кнопки и кликера */
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
         .chars-grid { display: flex; gap: 20px; }
@@ -85,9 +85,11 @@ function injectStyles() {
             background: #222; display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
         .char-option img { width: 80%; height: 80%; object-fit: contain; }
+        
+        /* КЛИКЕР (Дымок) - z-index 10, ниже кнопки */
         #click-catcher { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; cursor: pointer; }
 
-        /* Игровой HUD */
+        /* ИГРОВОЙ HUD */
         .hp-bar-container {
             position: absolute; width: 60px; height: 6px; background: rgba(0,0,0,0.5);
             border-radius: 3px; pointer-events: none; z-index: 5; display: none; transform: translate(-50%, -50%);
@@ -100,9 +102,8 @@ function injectStyles() {
             background: rgba(0,0,0,0.5); border-radius: 50%; color: white;
             display: flex; align-items: center; justify-content: center; z-index: 100;
         }
-        #joystick-zone { position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px; background: rgba(255,255,255,0.05); border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); }
-        #joystick-nub { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); }
-        #mobile-actions { position: absolute; bottom: 50px; right: 50px; display: flex; gap: 20px; }
+        #joystick-zone { position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px; background: rgba(255,255,255,0.05); border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); z-index: 100;}
+        #mobile-actions { position: absolute; bottom: 50px; right: 50px; display: flex; gap: 20px; z-index: 100;}
         #mobile-actions button { width: 70px; height: 70px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.1); font-size: 28px; color: white; }
     `;
     const style = document.createElement('style');
@@ -111,7 +112,6 @@ function injectStyles() {
     document.head.appendChild(style);
 }
 
-// --- INIT ---
 export function initGame(container, roomId, userId, isHost, playersList) {
     injectStyles();
     currentMyId = userId;
@@ -123,7 +123,6 @@ export function initGame(container, roomId, userId, isHost, playersList) {
     roomRef = ref(db, `rooms/${roomId}/brawl`);
     myPlayerRef = ref(db, `rooms/${roomId}/brawl/players/${userId}`);
 
-    // Сброс данных при входе
     set(myPlayerRef, {
         name: playersList[userId].name,
         char: null,
@@ -132,7 +131,6 @@ export function initGame(container, roomId, userId, isHost, playersList) {
         x: 0, y: 0, z: 0, rotation: 0, anim: 'idle'
     });
 
-    // Формируем HTML (Объединяем лобби и игру)
     const lobbyHtml = Lobby.getLobbyHTML();
     const gameHtml = `
         <div id="game-hud" class="hidden">
@@ -150,69 +148,51 @@ export function initGame(container, roomId, userId, isHost, playersList) {
 
     container.innerHTML = `<div id="brawl-ui">${lobbyHtml}${gameHtml}</div><div id="three-container"></div>`;
 
-    // Инициализация UI Лобби
     Lobby.setupLobbyUI(myPlayerRef);
     
-    // UI Игры
     const exitBtn = document.getElementById('custom-exit-btn');
     if(exitBtn) exitBtn.onclick = () => document.getElementById('close-fullscreen-btn')?.click();
 
-    // Запуск 3D
     initThreeJS(container);
 
-    // Слушаем базу
     unsubscribePlayers = onValue(ref(db, `rooms/${roomId}/brawl/players`), (snap) => {
         const players = snap.val() || {};
         
-        // Логика переключения
         if (gameState === 'lobby') {
             const totalPlayers = Object.keys(playersList).length;
             const currentPlayers = Object.values(players);
-            
-            // Все ли готовы?
             const allReady = currentPlayers.length === totalPlayers && currentPlayers.every(p => p.isReady);
 
             if (allReady) {
                 transitionToGame(players, userId, roomId);
             } else {
-                // Рендер лобби
                 Lobby.updateLobbyVisuals(scene, players, userId);
             }
         } else {
-            // Рендер игры
             updateGame(players, userId, roomId);
         }
     });
 }
 
-// --- TRANSITION ---
 function transitionToGame(playersData, myId, roomId) {
     gameState = 'playing';
     
-    // Скрываем UI Лобби
     ['lobby-status-text', 'lobby-ready-btn', 'click-catcher'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.style.display = 'none';
     });
     
-    // Показываем UI Игры
     document.getElementById('game-hud').classList.remove('hidden');
 
-    // Очищаем 3D объекты лобби
     Lobby.cleanupLobby();
-    // Очищаем сцену от моделей лобби (грубый метод, лучше через Lobby.cleanup)
-    // Но так как Lobby.updateLobbyVisuals удаляет лишнее, мы просто удалим всё перед стартом
     scene.children.forEach(c => {
         if(c.type === 'Group' || (c.isMesh && c.geometry.type !== 'CylinderGeometry' && c.geometry.type !== 'PlaneGeometry')) {
-             // Удаляем персонажей, оставляем пол и свет
-             c.visible = false; // Или scene.remove(c) аккуратно
+             c.visible = false;
         }
     });
     
-    // Спавн игроков
     const sortedIds = Object.keys(playersData).sort();
     
-    // Загружаем СВОЕГО персонажа
     const myData = playersData[myId];
     loadGameCharacter(myData.char, (mesh, mx, act) => {
         const idx = sortedIds.indexOf(myId);
@@ -226,12 +206,10 @@ function transitionToGame(playersData, myId, roomId) {
         mesh.position.set(spawn.x, 0, spawn.z);
         scene.add(mesh);
         
-        // Включаем управление
         setupControls(roomId, myId);
         startNetworkSync(roomId, myId);
     });
 
-    // Загружаем ОСТАЛЬНЫХ
     Object.keys(playersData).forEach(pid => {
         if (pid === myId) return;
         const pData = playersData[pid];
@@ -251,7 +229,6 @@ function transitionToGame(playersData, myId, roomId) {
     });
 }
 
-// --- GAME LOGIC ---
 function updateGame(playersData, myId, roomId) {
     Object.keys(playersData).forEach(pid => {
         const pData = playersData[pid];
@@ -264,7 +241,6 @@ function updateGame(playersData, myId, roomId) {
 
         const remote = otherPlayers[pid];
         if (remote && remote.mesh) {
-            // Синхронизация
             const newPos = new THREE.Vector3(pData.x, pData.y, pData.z);
             if (remote.mesh.position.distanceTo(newPos) > 3) remote.mesh.position.copy(newPos);
             else remote.mesh.position.lerp(newPos, 0.3);
@@ -274,7 +250,6 @@ function updateGame(playersData, myId, roomId) {
             while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
             remote.mesh.rotation.y += rotDiff * 0.3;
 
-            // Анимация
             if (remote.actions && pData.anim) {
                 const newAction = remote.actions[pData.anim];
                 if (newAction && remote.currentAnim !== pData.anim) {
@@ -317,8 +292,6 @@ function loadGameCharacter(charId, cb) {
             });
         });
         
-        // Ждем небольшую задержку, чтобы анимации прогрузились, или сразу отдаем
-        // (В идеале нужен Promise.all, но для простоты так)
         setTimeout(() => cb(fbx, mixer, actions), 500);
     });
 }
@@ -352,7 +325,6 @@ function handleDeath(roomId, userId) {
     update(ref(db, `rooms/${roomId}/brawl/players/${userId}`), { status: 'dead', anim: 'death' });
 }
 
-// --- STANDARD MECHANICS (Controls, Physics, Animate) ---
 function setupControls(roomId, userId) {
     let isDragging = false;
     window.addEventListener('mousedown', (e) => { 
@@ -384,7 +356,6 @@ function setupControls(roomId, userId) {
 }
 
 function setupMobileControls(roomId) {
-    // Joystick logic copy-paste from previous version (standard implementation)
     const zone = document.getElementById('joystick-zone');
     const nub = document.getElementById('joystick-nub');
     if (!zone) return;
@@ -394,7 +365,6 @@ function setupMobileControls(roomId) {
     zone.addEventListener('touchmove', (e) => { e.preventDefault(); for(let i=0; i<e.changedTouches.length; i++){ if(e.changedTouches[i].identifier === touchId){ let t = e.changedTouches[i]; let dx = t.clientX - startX; let dy = t.clientY - startY; let d = Math.sqrt(dx*dx+dy*dy); if(d > maxRadius) { let r = maxRadius/d; dx*=r; dy*=r; } nub.style.transform = `translate(${dx}px, ${dy}px)`; joystick = {x: dx/maxRadius, y: dy/maxRadius}; break; } } }, {passive:false});
     zone.addEventListener('touchend', (e) => { for(let i=0; i<e.changedTouches.length; i++){ if(e.changedTouches[i].identifier === touchId){ joystick = {x:0,y:0}; touchId = null; nub.style.transition = '0.1s'; nub.style.transform = 'translate(0,0)'; break; } } });
 
-    // Touch camera rotation
     let lastX = 0;
     document.getElementById('three-container').addEventListener('touchmove', (e) => {
         const t = e.touches[0];
@@ -411,7 +381,6 @@ function setupMobileControls(roomId) {
 }
 
 function checkHit(roomId) {
-    // Simple hit check
     Object.keys(otherPlayers).forEach(pid => {
         const enemy = otherPlayers[pid];
         if (enemy.mesh && myPlayerModel) {
@@ -444,7 +413,6 @@ function updateHpBar(pid, hp) {
     bar.querySelector('.hp-bar-fill').style.width = pct + '%';
     if(hp <= 0) bar.style.opacity = 0; else bar.style.opacity = 1;
     
-    // Position Update
     let target = null;
     if (pid === currentMyId && myPlayerModel) target = myPlayerModel;
     else if (otherPlayers[pid]) target = otherPlayers[pid].mesh;
@@ -470,7 +438,6 @@ function animate() {
         if (mixer) mixer.update(delta);
         Object.values(otherPlayers).forEach(p => { if(p.mixer) p.mixer.update(delta); });
         
-        // Physics & Movement (My Player)
         if (myPlayerModel && !isDead) {
             let moveX = 0, moveZ = 0;
             if(keys.w) moveZ = -1; if(keys.s) moveZ = 1; if(keys.a) moveX = -1; if(keys.d) moveX = 1;
@@ -499,7 +466,6 @@ function animate() {
             }
         }
         
-        // Camera Follow
         if (myPlayerModel) {
             const offX = Math.sin(cameraAngle) * GAME_CAM_DIST;
             const offZ = Math.cos(cameraAngle) * GAME_CAM_DIST;
@@ -522,7 +488,6 @@ function initThreeJS(container) {
     scene.background = new THREE.Color(0x111115);
     scene.fog = new THREE.Fog(0x111115, 10, 50);
 
-    // Старт камеры (Лобби)
     camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(LOBBY_CAM_POS.x, LOBBY_CAM_POS.y, LOBBY_CAM_POS.z);
     camera.lookAt(0, 1, 0);
