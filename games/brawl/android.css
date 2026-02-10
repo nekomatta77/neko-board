@@ -122,3 +122,32 @@ canvas {
     #rotate-warning { display: flex !important; }
     #brawl-container { display: none !important; }
 }
+/* КНОПКИ ДЕЙСТВИЙ (ПРЫЖОК, УДАР) */
+#mobile-actions {
+    position: absolute;
+    bottom: 40px;
+    right: 40px;
+    display: flex;
+    gap: 20px;
+    pointer-events: auto;
+}
+
+#btn-jump, #btn-punch {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(255,255,255,0.4);
+    font-size: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+    cursor: pointer;
+    user-select: none;
+}
+
+#btn-jump:active, #btn-punch:active {
+    background: rgba(255,255,255,0.5);
+    transform: scale(0.95);
+}
