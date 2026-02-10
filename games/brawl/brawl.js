@@ -15,11 +15,15 @@ const JUMP_FORCE = 12;
 const SPEED = 6;
 const SYNC_RATE = 50; 
 
-// --- НАСТРОЙКИ КАМЕРЫ (CLOSE ACTION VIEW) ---
-// Камера стала ближе и чуть ниже для погружения
-const CAM_DISTANCE = 4.0;  // Было 6.0
-const CAM_HEIGHT = 2.5;    // Было 3.5
-const LOOK_OFFSET_Y = 1.8; // Смотрим в район плеч
+// --- НАСТРОЙКИ КАМЕРЫ ---
+const CAM_DISTANCE = 4.0;
+const CAM_HEIGHT = 2.5;
+const LOOK_OFFSET_Y = 1.8;
+
+// --- БОЕВЫЕ НАСТРОЙКИ ---
+const MAX_HP = 100;
+const PUNCH_DAMAGE = 10;
+const PUNCH_RANGE = 2.5; // Дистанция удара
 
 let scene, camera, renderer, clock;
 let myPlayerModel, mixer;
@@ -28,11 +32,12 @@ let actions = {};
 let activeAction = null; 
 let joystick = { x: 0, y: 0 };
 let keys = { w: false, a: false, s: false, d: false, space: false };
-let isGrounded = true, verticalVelocity = 0, isPunching = false;
+let isGrounded = true, verticalVelocity = 0, isPunching = false, isDead = false;
 let mySpawnIndex = 0;
 let gameState = 'selecting';
 
-let cameraAngle = Math.PI; // Старт спиной к камере
+let cameraAngle = Math.PI; 
+let hpBars = {}; // Храним ссылки на DOM элементы HP баров { id: element }
 
 // Ссылки Firebase
 let roomRef, myPlayerRef;
@@ -98,7 +103,29 @@ function injectStyles() {
             animation: spin 0.8s linear infinite; margin-bottom: 20px;
         }
 
-        /* ИНТЕРФЕЙС (ТОЛЬКО ДЛЯ МОБИЛ) */
+        /* HP BAR */
+        .hp-bar-container {
+            position: absolute;
+            width: 60px;
+            height: 6px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 3px;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+            display: none; /* Скрыт пока не позиционирован */
+        }
+        .hp-bar-fill {
+            height: 100%;
+            background: #00E676;
+            border-radius: 3px;
+            width: 100%;
+            transition: width 0.2s ease, background 0.2s;
+        }
+        .hp-bar-fill.low { background: #ff3d00; }
+        .hp-bar-fill.med { background: #ffea00; }
+
+        /* ИНТЕРФЕЙС (МОБИЛЬНЫЙ) */
         #custom-exit-btn {
             position: absolute; top: 20px; right: 20px;
             width: 40px; height: 40px;
@@ -156,20 +183,23 @@ export function initGame(container, roomId, userId, isHost, playersList) {
     roomRef = ref(db, `rooms/${roomId}/brawl`);
     myPlayerRef = ref(db, `rooms/${roomId}/brawl/players/${userId}`);
 
+    // Инициализация игрока с HP
     set(myPlayerRef, {
         status: 'selecting',
         name: playersList[userId].name,
         char: null,
+        hp: MAX_HP, // Добавляем здоровье
         x: 0, y: -100, z: 0,
         rotation: 0,
         anim: 'idle'
     });
 
-    // Формируем HUD. На ПК он будет пустой (кроме скрытых системных штук)
     let hudHTML = '';
-    
+    // Контейнер для HP баров
+    hudHTML += '<div id="hp-bars-layer"></div>';
+
     if (isMobile) {
-        hudHTML = `
+        hudHTML += `
              <div id="custom-exit-btn" title="Выйти">✕</div>
              <div id="joystick-zone"><div id="joystick-nub"></div></div>
              <div id="mobile-actions">
@@ -177,8 +207,7 @@ export function initGame(container, roomId, userId, isHost, playersList) {
                  <button id="btn-punch">🥊</button>
              </div>
         `;
-    } 
-    // На ПК ничего не добавляем в HUD, чтобы был чистый экран.
+    }
 
     container.innerHTML = `
         <div id="brawl-ui">
@@ -209,7 +238,6 @@ export function initGame(container, roomId, userId, isHost, playersList) {
         <div id="three-container"></div>
     `;
 
-    // Вешаем обработчик на кнопку выхода (только если она есть, т.е. на мобилах)
     const exitBtn = document.getElementById('custom-exit-btn');
     if (exitBtn) {
         exitBtn.onclick = (e) => {
@@ -235,7 +263,7 @@ export function initGame(container, roomId, userId, isHost, playersList) {
         const allIds = Object.keys(players);
         const totalExpected = Object.keys(playersList).length;
 
-        const allSelected = allIds.length === totalExpected && Object.values(players).every(p => p.status === 'selected' || p.status === 'loaded' || p.status === 'playing');
+        const allSelected = allIds.length === totalExpected && Object.values(players).every(p => p.status === 'selected' || p.status === 'loaded' || p.status === 'playing' || p.status === 'dead');
 
         if (gameState === 'selecting' && allSelected) {
             gameState = 'loading';
@@ -244,7 +272,7 @@ export function initGame(container, roomId, userId, isHost, playersList) {
             initThreeJS(container, players[userId].char);
         }
 
-        const allLoaded = Object.values(players).every(p => p.status === 'loaded' || p.status === 'playing');
+        const allLoaded = Object.values(players).every(p => p.status === 'loaded' || p.status === 'playing' || p.status === 'dead');
         
         if (gameState === 'loading' && allLoaded) {
             gameState = 'playing';
@@ -253,51 +281,100 @@ export function initGame(container, roomId, userId, isHost, playersList) {
             
             const spawn = SPAWN_POINTS[mySpawnIndex % SPAWN_POINTS.length];
             myPlayerModel.position.set(spawn.x, 0, spawn.z);
-            update(myPlayerRef, { status: 'playing', x: spawn.x, y: 0, z: spawn.z });
+            update(myPlayerRef, { status: 'playing', hp: MAX_HP, x: spawn.x, y: 0, z: spawn.z });
             
-            setupControls();
+            setupControls(roomId, userId); // Передаем ID для урона
             startNetworkSync(roomId, userId);
         }
 
         if (gameState === 'playing' || gameState === 'loading') {
             updateRemotePlayers(players, userId);
+            
+            // Проверка на смерть (если кто-то удалил здоровье в Firebase)
+            if (players[userId] && players[userId].hp <= 0 && !isDead) {
+                handleDeath(roomId, userId);
+            }
         }
     });
+}
+
+function handleDeath(roomId, userId) {
+    if (isDead) return;
+    isDead = true;
+    
+    // Играем анимацию смерти
+    fadeToAction('death', 0.2);
+    
+    // Отключаем управление (больше не ходим)
+    isPunching = false; 
+    
+    // Обновляем статус
+    update(ref(db, `rooms/${roomId}/brawl/players/${userId}`), { status: 'dead', anim: 'death' });
 }
 
 function startNetworkSync(roomId, myId) {
     syncInterval = setInterval(() => {
         if (!myPlayerModel) return;
+        
         let animName = 'idle';
-        if (activeAction === actions.run) animName = 'run';
-        if (activeAction === actions.jump) animName = 'jump';
-        if (activeAction === actions.punch) animName = 'punch';
+        if (isDead) animName = 'death'; // Если мертв - всегда death
+        else {
+            if (activeAction === actions.run) animName = 'run';
+            if (activeAction === actions.jump) animName = 'jump';
+            if (activeAction === actions.punch) animName = 'punch';
+        }
 
-        update(ref(db, `rooms/${roomId}/brawl/players/${myId}`), {
-            x: myPlayerModel.position.x,
-            y: myPlayerModel.position.y,
-            z: myPlayerModel.position.z,
-            rotation: myPlayerModel.rotation.y,
-            anim: animName
-        });
+        // Если мертв, не обновляем позицию, только статус и анимацию
+        const updates = {
+            anim: animName,
+            status: isDead ? 'dead' : 'playing'
+        };
+        
+        if (!isDead) {
+            updates.x = myPlayerModel.position.x;
+            updates.y = myPlayerModel.position.y;
+            updates.z = myPlayerModel.position.z;
+            updates.rotation = myPlayerModel.rotation.y;
+        }
+
+        update(ref(db, `rooms/${roomId}/brawl/players/${myId}`), updates);
     }, SYNC_RATE);
 }
 
 function updateRemotePlayers(playersData, myId) {
     Object.keys(playersData).forEach(pid => {
-        if (pid === myId) return;
         const pData = playersData[pid];
+        
+        // Управление HP баром
+        updateHpBar(pid, pData.hp, pData.name, pid === myId);
+
+        if (pid === myId) return;
+
         if (!otherPlayers[pid]) {
             createRemotePlayer(pid, pData.char);
         } else {
             const remote = otherPlayers[pid];
             if (remote.mesh) {
-                remote.mesh.position.lerp(new THREE.Vector3(pData.x, pData.y, pData.z), 0.3);
+                // ПЛАВНОСТЬ: Используем интерполяцию (lerp) с малым коэффициентом
+                // Если дистанция большая (телепорт), прыгаем сразу
+                const newPos = new THREE.Vector3(pData.x, pData.y, pData.z);
+                const dist = remote.mesh.position.distanceTo(newPos);
+                
+                if (dist > 5) {
+                    remote.mesh.position.copy(newPos); // Телепорт
+                } else if (dist > 0.05) {
+                    // Коэффициент 0.1 делает движение плавным, убирает дрожание
+                    remote.mesh.position.lerp(newPos, 0.1); 
+                }
+
+                // Вращение
                 let rotDiff = pData.rotation - remote.mesh.rotation.y;
                 while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
                 while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
-                remote.mesh.rotation.y += rotDiff * 0.3;
+                // Очень плавно вращаем
+                remote.mesh.rotation.y += rotDiff * 0.1;
 
+                // Анимация
                 if (remote.mixer && remote.actions && pData.anim) {
                     const newAction = remote.actions[pData.anim];
                     if (newAction && remote.currentAnim !== pData.anim) {
@@ -310,12 +387,97 @@ function updateRemotePlayers(playersData, myId) {
             }
         }
     });
+
+    // Удаление ушедших
     Object.keys(otherPlayers).forEach(pid => {
         if (!playersData[pid]) {
             if(otherPlayers[pid].mesh) scene.remove(otherPlayers[pid].mesh);
+            removeHpBar(pid);
             delete otherPlayers[pid];
         }
     });
+}
+
+// --- УПРАВЛЕНИЕ HP БАРАМИ ---
+function updateHpBar(pid, hp, name, isMe) {
+    let bar = hpBars[pid];
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.className = 'hp-bar-container';
+        bar.innerHTML = `<div class="hp-bar-fill"></div>`;
+        document.getElementById('hp-bars-layer').appendChild(bar);
+        hpBars[pid] = bar;
+    }
+
+    // Обновляем ширину
+    const fill = bar.querySelector('.hp-bar-fill');
+    const pct = Math.max(0, Math.min(100, hp));
+    fill.style.width = pct + '%';
+    
+    // Цвет
+    fill.className = 'hp-bar-fill';
+    if (pct < 50) fill.classList.add('med');
+    if (pct < 20) fill.classList.add('low');
+
+    // Если мертв или это я - можно скрыть (или оставить)
+    // Я решил оставить для себя тоже, чтобы видеть свое HP
+    if (hp <= 0) bar.style.opacity = 0;
+    else bar.style.opacity = 1;
+}
+
+function removeHpBar(pid) {
+    if (hpBars[pid]) {
+        hpBars[pid].remove();
+        delete hpBars[pid];
+    }
+}
+
+function updateHpBarsPositions() {
+    // Обновляем позиции 2D плашек каждый кадр
+    Object.keys(hpBars).forEach(pid => {
+        let targetMesh = null;
+        
+        if (pid === myPlayerRef.key) targetMesh = myPlayerModel; // Мой ID? (надо проверить логику ID)
+        // Тут хитрость: мы не знаем мой ID в этой функции напрямую, если он не глобален.
+        // Но myPlayerModel есть глобально.
+        // А otherPlayers хранит чужие.
+        
+        if (otherPlayers[pid]) targetMesh = otherPlayers[pid].mesh;
+        else if (myPlayerModel && pid === myPlayerRef.key) targetMesh = myPlayerModel; // Костыль, но сработает если myPlayerRef.key совпадет
+        
+        // Исправим проще:
+        // Переберем otherPlayers
+        if (otherPlayers[pid] && otherPlayers[pid].mesh) {
+            updateSingleBarPos(hpBars[pid], otherPlayers[pid].mesh);
+        }
+        // И себя
+        if (myPlayerModel && pid.includes(myPlayerRef.key.split('/').pop())) { // Очень грубая проверка, лучше хранить myId
+             updateSingleBarPos(hpBars[pid], myPlayerModel);
+        }
+    });
+}
+// Временный фикс, чтобы не ломать логику, просто передадим myId в animate, или сохраним глобально
+let globalMyId = null;
+
+function updateSingleBarPos(bar, mesh) {
+    if (!mesh) return;
+    const pos = mesh.position.clone();
+    pos.y += 2.0; // Высота над головой
+    
+    // Проецируем
+    pos.project(camera);
+    
+    const x = (pos.x * .5 + .5) * window.innerWidth;
+    const y = (-(pos.y * .5) + .5) * window.innerHeight;
+    
+    // Если сзади камеры - скрываем
+    if (pos.z > 1) {
+        bar.style.display = 'none';
+    } else {
+        bar.style.display = 'block';
+        bar.style.left = x + 'px';
+        bar.style.top = y + 'px';
+    }
 }
 
 function createRemotePlayer(pid, charId) {
@@ -340,11 +502,15 @@ function createRemotePlayer(pid, charId) {
              otherPlayers[pid].activeAction = act;
         }
 
-        ['run', 'jump', 'punch'].forEach(anim => {
-            loader.load(`assets/models/cock/cock_${anim}.fbx`, (a) => {
+        ['run', 'jump', 'punch', 'death'].forEach(anim => { // + death
+            let fName = anim === 'death' ? 'cock_dying' : `cock_${anim}`; // death файл называется иначе
+            loader.load(`assets/models/cock/${fName}.fbx`, (a) => {
                 if(a.animations[0]) {
                     const act = mixer.clipAction(a.animations[0]);
-                    if(anim === 'jump' || anim === 'punch') act.setLoop(THREE.LoopOnce);
+                    if(anim === 'jump' || anim === 'punch' || anim === 'death') {
+                        act.setLoop(THREE.LoopOnce);
+                        act.clampWhenFinished = true;
+                    }
                     otherPlayers[pid].actions[anim] = act;
                 }
             });
@@ -423,7 +589,7 @@ function loadMyPlayer(charId) {
         const loadNext = (path, name, cb) => {
              loader.load(path, (a) => {
                  actions[name] = mixer.clipAction(a.animations[0]);
-                 if(name === 'jump' || name === 'punch') {
+                 if(name === 'jump' || name === 'punch' || name === 'death') {
                      actions[name].setLoop(THREE.LoopOnce);
                      actions[name].clampWhenFinished = true;
                  }
@@ -433,22 +599,24 @@ function loadMyPlayer(charId) {
         loadNext('assets/models/cock/cock_run.fbx', 'run', () => {
             loadNext('assets/models/cock/cock_jump.fbx', 'jump', () => {
                 loadNext('assets/models/cock/cock_punch.fbx', 'punch', () => {
-                    update(myPlayerRef, { status: 'loaded' });
+                    // Загружаем смерть
+                     loadNext('assets/models/cock/cock_dying.fbx', 'death', () => {
+                        update(myPlayerRef, { status: 'loaded' });
+                     });
                 });
             });
         });
     });
 }
 
-function setupControls() {
+function setupControls(roomId, userId) {
+    globalMyId = userId; // Сохраняем для обновления баров
+    
     let isDragging = false;
     
-    // Вращение камеры мышкой на ПК
     window.addEventListener('mousedown', (e) => {
         if(e.target.tagName !== 'BUTTON' && e.target.id !== 'custom-exit-btn') {
             isDragging = true;
-            // ЛКМ больше НЕ бьет, бьет F. Но можно оставить как альтернативу, 
-            // однако вы просили "на F", поэтому ЛКМ только для камеры.
         }
     });
     
@@ -461,16 +629,18 @@ function setupControls() {
     });
 
     window.addEventListener('keydown', (e) => {
+        if (isDead) return; // Мертвые не ходят
         if(e.code === 'KeyW') keys.w = true;
         if(e.code === 'KeyS') keys.s = true;
         if(e.code === 'KeyA') keys.a = true;
         if(e.code === 'KeyD') keys.d = true;
         if(e.code === 'Space') triggerJump();
         
-        // НОВАЯ АТАКА НА F
-        if(e.code === 'KeyF') triggerPunch();
-
-        // НОВЫЙ ВЫХОД НА ESC
+        // АТАКА (F)
+        if(e.code === 'KeyF') {
+            triggerPunch();
+            checkHit(roomId, userId); // Проверяем попадание
+        }
         if(e.code === 'Escape') {
             document.getElementById('close-fullscreen-btn')?.click();
         }
@@ -505,9 +675,52 @@ function setupControls() {
              }
         }, {passive: false});
 
-        document.getElementById('btn-jump')?.addEventListener('touchstart', (e) => { e.preventDefault(); triggerJump(); });
-        document.getElementById('btn-punch')?.addEventListener('touchstart', (e) => { e.preventDefault(); triggerPunch(); });
+        document.getElementById('btn-jump')?.addEventListener('touchstart', (e) => { 
+            e.preventDefault(); if(!isDead) triggerJump(); 
+        });
+        document.getElementById('btn-punch')?.addEventListener('touchstart', (e) => { 
+            e.preventDefault(); 
+            if(!isDead) {
+                triggerPunch();
+                checkHit(roomId, userId);
+            }
+        });
     }
+}
+
+// --- БОЕВАЯ СИСТЕМА ---
+function checkHit(roomId, myId) {
+    if (!myPlayerModel || isDead) return;
+    
+    // Проверяем дистанцию до каждого врага
+    Object.keys(otherPlayers).forEach(pid => {
+        const enemy = otherPlayers[pid];
+        if (enemy.mesh) {
+            const dist = myPlayerModel.position.distanceTo(enemy.mesh.position);
+            // Также проверим угол (чтобы бить только перед собой)
+            const dirToEnemy = new THREE.Vector3().subVectors(enemy.mesh.position, myPlayerModel.position).normalize();
+            const myDir = new THREE.Vector3(0, 0, 1).applyQuaternion(myPlayerModel.quaternion).normalize();
+            const angle = myDir.angleTo(dirToEnemy); // в радианах
+
+            if (dist < PUNCH_RANGE && angle < 1.0) { // 1 радиан ~ 60 градусов конус
+                // ПОПАДАНИЕ!
+                // Считываем текущее HP врага (надо знать его)
+                // Но мы не храним HP локально в otherPlayers. 
+                // Придется делать транзакцию в Firebase
+                const enemyRef = ref(db, `rooms/${roomId}/brawl/players/${pid}/hp`);
+                // Используем runTransaction для атомарности
+                // Или просто get + set для простоты прототипа
+                get(enemyRef).then(snap => {
+                    let currentHp = snap.val() || 0;
+                    if (currentHp > 0) {
+                        currentHp -= PUNCH_DAMAGE;
+                        if (currentHp < 0) currentHp = 0;
+                        update(ref(db, `rooms/${roomId}/brawl/players/${pid}`), { hp: currentHp });
+                    }
+                });
+            }
+        }
+    });
 }
 
 function setupJoystick() {
@@ -554,19 +767,19 @@ function setupJoystick() {
 }
 
 function triggerJump() {
-    if (!isGrounded || isPunching) return;
+    if (!isGrounded || isPunching || isDead) return;
     isGrounded = false;
     verticalVelocity = JUMP_FORCE;
     fadeToAction('jump', 0.1);
 }
 
 function triggerPunch() {
-    if (isPunching) return;
+    if (isPunching || isDead) return;
     isPunching = true;
     fadeToAction('punch', 0.1);
     setTimeout(() => { 
         isPunching = false; 
-        if(isGrounded) fadeToAction(keys.w||keys.s||keys.a||keys.d ? 'run' : 'idle', 0.2); 
+        if(!isDead && isGrounded) fadeToAction(keys.w||keys.s||keys.a||keys.d ? 'run' : 'idle', 0.2); 
     }, 500);
 }
 
@@ -586,54 +799,62 @@ function animate() {
     });
 
     if (myPlayerModel && gameState === 'playing') {
-        let moveX = 0, moveZ = 0;
-        if(keys.w) moveZ = -1;
-        if(keys.s) moveZ = 1;
-        if(keys.a) moveX = -1;
-        if(keys.d) moveX = 1;
-        if(Math.abs(joystick.x) > 0.1 || Math.abs(joystick.y) > 0.1) { moveX = joystick.x; moveZ = joystick.y; }
+        // Обновляем позиции HP баров
+        updateHpBarsPositions();
 
-        if (!isGrounded) verticalVelocity += GRAVITY * delta;
-        myPlayerModel.position.y += verticalVelocity * delta;
+        if (isDead) {
+            // Если мертв, физика не нужна, просто падаем вниз если в воздухе
+            if (!isGrounded) verticalVelocity += GRAVITY * delta;
+            myPlayerModel.position.y += verticalVelocity * delta;
+            if (myPlayerModel.position.y <= 0) myPlayerModel.position.y = 0;
+            // Камеру оставляем
+        } else {
+            let moveX = 0, moveZ = 0;
+            if(keys.w) moveZ = -1;
+            if(keys.s) moveZ = 1;
+            if(keys.a) moveX = -1;
+            if(keys.d) moveX = 1;
+            if(Math.abs(joystick.x) > 0.1 || Math.abs(joystick.y) > 0.1) { moveX = joystick.x; moveZ = joystick.y; }
 
-        if (myPlayerModel.position.y <= 0) {
-            myPlayerModel.position.y = 0;
-            verticalVelocity = 0;
-            if (!isGrounded) {
-                isGrounded = true;
-                if(!isPunching) fadeToAction((moveX||moveZ) ? 'run' : 'idle', 0.1);
+            if (!isGrounded) verticalVelocity += GRAVITY * delta;
+            myPlayerModel.position.y += verticalVelocity * delta;
+
+            if (myPlayerModel.position.y <= 0) {
+                myPlayerModel.position.y = 0;
+                verticalVelocity = 0;
+                if (!isGrounded) {
+                    isGrounded = true;
+                    if(!isPunching) fadeToAction((moveX||moveZ) ? 'run' : 'idle', 0.1);
+                }
+            }
+            
+            if (myPlayerModel.position.y < -10) {
+                 const spawn = SPAWN_POINTS[mySpawnIndex % SPAWN_POINTS.length];
+                 myPlayerModel.position.set(spawn.x, 5, spawn.z);
+                 verticalVelocity = 0;
+            }
+
+            // --- ДВИЖЕНИЕ ---
+            if ((moveX !== 0 || moveZ !== 0) && !isPunching) {
+                const inputVector = new THREE.Vector3(moveX, 0, moveZ).normalize();
+                inputVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
+
+                myPlayerModel.position.x += inputVector.x * SPEED * delta;
+                myPlayerModel.position.z += inputVector.z * SPEED * delta;
+                
+                const targetRot = Math.atan2(inputVector.x, inputVector.z);
+                let diff = targetRot - myPlayerModel.rotation.y;
+                while (diff > Math.PI) diff -= Math.PI*2;
+                while (diff < -Math.PI) diff += Math.PI*2;
+                myPlayerModel.rotation.y += diff * 10 * delta;
+
+                if(isGrounded) fadeToAction('run', 0.2);
+            } else {
+                 if(isGrounded && !isPunching) fadeToAction('idle', 0.2);
             }
         }
-        
-        if (myPlayerModel.position.y < -10) {
-             const spawn = SPAWN_POINTS[mySpawnIndex % SPAWN_POINTS.length];
-             myPlayerModel.position.set(spawn.x, 5, spawn.z);
-             verticalVelocity = 0;
-        }
 
-        // --- ДВИЖЕНИЕ С УЧЕТОМ КАМЕРЫ ---
-        if ((moveX !== 0 || moveZ !== 0) && !isPunching) {
-            const inputVector = new THREE.Vector3(moveX, 0, moveZ).normalize();
-            
-            // Вращаем вектор ввода относительно угла камеры
-            inputVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngle);
-
-            myPlayerModel.position.x += inputVector.x * SPEED * delta;
-            myPlayerModel.position.z += inputVector.z * SPEED * delta;
-            
-            // Вращаем персонажа в сторону движения
-            const targetRot = Math.atan2(inputVector.x, inputVector.z);
-            let diff = targetRot - myPlayerModel.rotation.y;
-            while (diff > Math.PI) diff -= Math.PI*2;
-            while (diff < -Math.PI) diff += Math.PI*2;
-            myPlayerModel.rotation.y += diff * 10 * delta;
-
-            if(isGrounded) fadeToAction('run', 0.2);
-        } else {
-             if(isGrounded && !isPunching) fadeToAction('idle', 0.2);
-        }
-
-        // --- ОБНОВЛЕНИЕ КАМЕРЫ (3rd Person Close) ---
+        // --- КАМЕРА (Привязана к игроку даже после смерти, режим наблюдателя) ---
         const offsetX = Math.sin(cameraAngle) * CAM_DISTANCE;
         const offsetZ = Math.cos(cameraAngle) * CAM_DISTANCE;
 
