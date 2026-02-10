@@ -1,7 +1,15 @@
-body { margin: 0; overflow: hidden; }
-#brawl-container { width: 100%; height: 100%; position: relative; background: #000; }
+body { margin: 0; overflow: hidden; background: #000; }
+
+/* Основной контейнер игры */
+#brawl-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
 canvas { display: block; width: 100% !important; height: 100% !important; }
 
+/* Интерфейс (UI) */
 #game-ui {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
@@ -9,17 +17,52 @@ canvas { display: block; width: 100% !important; height: 100% !important; }
     z-index: 10;
 }
 
-/* Джойстик с учетом iOS отступов */
+/* Джойстик */
 #joystick-zone {
     position: absolute;
-    bottom: calc(30px + env(safe-area-inset-bottom));
-    left: 30px;
+    bottom: 40px;
+    left: 40px;
     width: 140px;
     height: 140px;
     background: rgba(255, 255, 255, 0.15);
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
     pointer-events: auto;
-    backdrop-filter: blur(10px);
     display: block;
+}
+
+/* --- ГОРИЗОНТАЛЬНЫЙ РЕЖИМ (ВАЖНО) --- */
+
+/* Экран-предупреждение (по умолчанию скрыт) */
+#rotate-warning {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #1a1a1a;
+    z-index: 9999;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-family: sans-serif;
+    text-align: center;
+}
+
+.rotate-icon {
+    font-size: 50px;
+    margin-bottom: 20px;
+    animation: rotate-anim 2s infinite;
+}
+
+@keyframes rotate-anim {
+    0% { transform: rotate(0deg); }
+    50% { transform: rotate(-90deg); }
+    100% { transform: rotate(0deg); }
+}
+
+/* ЕСЛИ ЭКРАН ВЕРТИКАЛЬНЫЙ (Portrait) */
+@media (orientation: portrait) {
+    #brawl-container { display: none !important; } /* Скрываем игру */
+    #rotate-warning { display: flex !important; } /* Показываем просьбу */
 }

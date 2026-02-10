@@ -1,19 +1,19 @@
 import { db, ref, update, onValue, off, set, remove } from '../../js/firebase-config.js';
 
-// Импорты через "карту" (index.html)
-import * as THREE from 'three';
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+// --- ИСПРАВЛЕНИЕ ОШИБКИ ЗАГРУЗКИ ---
+// Используем прямые ссылки, чтобы телефон точно их увидел
+import * as THREE from 'https://esm.sh/three@0.160.0';
+import { FBXLoader } from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/FBXLoader';
 
 let scene, camera, renderer, clock;
 let myPlayerModel; 
 let mixer; 
-let runAction; // Сохраним действие бега, чтобы управлять им
+let runAction;
 let animationId;
 let containerEl;
-let joystick = { x: 0, y: 0 }; // Состояние джойстика
-let keys = { w: false, a: false, s: false, d: false }; // Состояние клавиш
+let joystick = { x: 0, y: 0 };
+let keys = { w: false, a: false, s: false, d: false };
 
-// Состояние
 let myId = null;
 let roomId = null;
 
@@ -23,13 +23,18 @@ export function initGame(container, _roomId, _userId, isHost) {
     myId = _userId;
     clock = new THREE.Clock(); 
 
-    // Интерфейс
+    // Добавляем экран поворота в HTML
     container.innerHTML = `
+        <div id="rotate-warning">
+            <div class="rotate-icon">📱 ➔ 📺</div>
+            <p>Пожалуйста, поверните устройство<br>горизонтально для игры</p>
+        </div>
+
         <div id="brawl-container">
             <div id="game-ui">
                 <div style="position:absolute; top:10px; left:10px; color:white; font-family:sans-serif; text-shadow:1px 1px 0 #000; pointer-events:none;">
-                    <b>Управление:</b> WASD (ПК) или Джойстик (Тел)<br>
-                    <span id="loading-text">Загрузка...</span>
+                    <b>Brawl Mode</b><br>
+                    <span id="loading-text">Загрузка ресурсов...</span>
                 </div>
                 <div id="joystick-zone"></div>
             </div>
@@ -37,7 +42,7 @@ export function initGame(container, _roomId, _userId, isHost) {
     `;
 
     initThreeJS();
-    setupControls(); // Подключаем управление
+    setupControls();
     animate();
 }
 
@@ -62,7 +67,7 @@ function initThreeJS() {
     gameDiv.appendChild(renderer.domElement);
 
     // СВЕТ
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5); // Яркий общий свет
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
     scene.add(ambientLight);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
@@ -81,39 +86,36 @@ function initThreeJS() {
     const grid = new THREE.GridHelper(60, 60, 0x555555, 0x222222);
     scene.add(grid);
 
-    // --- ЗАГРУЗКА ТЕКСТУРЫ И МОДЕЛИ ---
+    // ЗАГРУЗКА
     const textureLoader = new THREE.TextureLoader();
-    
-    // !!! ВАЖНО: ЗАМЕНИТЕ 'cock_texture.png' НА ИМЯ ВАШЕГО ФАЙЛА ТЕКСТУРЫ !!!
-    // Если не знаете имя, посмотрите в папке assets/models
-    const texture = textureLoader.load('assets/models/cock_texture.png'); 
-    // Пример имени, может быть Texture_01.jpg и т.д.
-
     const loader = new FBXLoader();
-    
+
+    // !!! ПРОВЕРЬ ИМЯ ФАЙЛА КАРТИНКИ В ПАПКЕ assets/models !!!
+    // Например: 'assets/models/Cock_Texture.png' или 'assets/models/texture.jpg'
+    // Если картинка не загрузится, модель будет черной, но игра не вылетит.
+    const texture = textureLoader.load('assets/models/Poly_Cock_01.png', 
+        () => console.log("Текстура загружена"),
+        undefined,
+        (err) => console.log("Ошибка текстуры (модель будет черной)", err)
+    );
+
     loader.load('assets/models/cock.fbx', 
         (object) => {
-            console.log("FBX загружен!", object);
+            console.log("Модель загружена");
             const loadingText = document.getElementById('loading-text');
             if (loadingText) loadingText.textContent = "Готово!";
 
             myPlayerModel = object;
-            
-            // Если он смотрит на нас - разворачиваем (раскомментируй, если нужно)
-            // myPlayerModel.rotation.y = Math.PI; 
 
             myPlayerModel.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
-                    
-                    // ПРИНУДИТЕЛЬНО НАКЛАДЫВАЕМ ТЕКСТУРУ
+                    // Применяем текстуру
                     if (child.material) {
-                         child.material.map = texture; // Накладываем картинку
+                         child.material.map = texture;
                          child.material.needsUpdate = true;
-                         // Убираем черноту
                          child.material.shininess = 0; 
-                         child.material.emissive = new THREE.Color(0x000000);
                     }
                 }
             });
@@ -121,28 +123,27 @@ function initThreeJS() {
             myPlayerModel.scale.set(0.01, 0.01, 0.01); 
             scene.add(myPlayerModel);
 
-            // АНИМАЦИЯ
+            // Анимация
             if (object.animations && object.animations.length > 0) {
                 mixer = new THREE.AnimationMixer(myPlayerModel);
                 runAction = mixer.clipAction(object.animations[0]);
                 runAction.play(); 
-                runAction.paused = true; // Сначала СТОИМ
+                runAction.paused = true; // Стоим по умолчанию
             }
         },
         undefined,
         (error) => {
             console.error(error);
             const loadingText = document.getElementById('loading-text');
-            if (loadingText) loadingText.textContent = "Ошибка загрузки";
+            if (loadingText) loadingText.textContent = "Ошибка загрузки FBX";
         }
     );
 
     window.addEventListener('resize', onWindowResize);
 }
 
-// --- УПРАВЛЕНИЕ ---
 function setupControls() {
-    // Клавиатура (ПК)
+    // ПК
     window.addEventListener('keydown', (e) => {
         if (e.key === 'w') keys.w = true;
         if (e.key === 'a') keys.a = true;
@@ -156,42 +157,57 @@ function setupControls() {
         if (e.key === 'd') keys.d = false;
     });
 
-    // Джойстик (Мобилки) - простая реализация
+    // ТЕЛЕФОН (Джойстик)
     const zone = document.getElementById('joystick-zone');
+    if (!zone) return;
+
     let touchId = null;
     let startX, startY;
 
     zone.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        const touch = e.changedTouches[0];
+        // Берем только первый палец, коснувшийся джойстика
+        const touch = e.changedTouches[0]; 
         touchId = touch.identifier;
         startX = touch.clientX;
         startY = touch.clientY;
         joystick = { x: 0, y: 0 };
-    });
+    }, { passive: false });
 
     zone.addEventListener('touchmove', (e) => {
         e.preventDefault();
-        const touch = Array.from(e.changedTouches).find(t => t.identifier === touchId);
-        if (touch) {
-            const dx = touch.clientX - startX;
-            const dy = touch.clientY - startY;
-            // Нормализуем джойстик от -1 до 1
-            joystick.x = Math.max(-1, Math.min(1, dx / 40)); 
-            joystick.y = Math.max(-1, Math.min(1, dy / 40));
+        // Ищем наш палец
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === touchId) {
+                const touch = e.changedTouches[i];
+                const dx = touch.clientX - startX;
+                const dy = touch.clientY - startY;
+                joystick.x = Math.max(-1, Math.min(1, dx / 40)); 
+                joystick.y = Math.max(-1, Math.min(1, dy / 40));
+                break;
+            }
         }
-    });
+    }, { passive: false });
 
     zone.addEventListener('touchend', (e) => {
         e.preventDefault();
-        joystick = { x: 0, y: 0 };
-    });
+        // Если подняли "наш" палец - сброс
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === touchId) {
+                joystick = { x: 0, y: 0 };
+                touchId = null;
+                break;
+            }
+        }
+    }, { passive: false });
 }
 
 function onWindowResize() {
     if (!camera || !renderer || !containerEl) return;
     const gameDiv = document.getElementById('brawl-container');
-    if (!gameDiv) return;
+    // Если игра скрыта (портретный режим), размер может быть 0, игнорируем
+    if (!gameDiv || gameDiv.clientHeight === 0) return;
+    
     camera.aspect = gameDiv.clientWidth / gameDiv.clientHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(gameDiv.clientWidth, gameDiv.clientHeight);
@@ -201,17 +217,14 @@ function animate() {
     animationId = requestAnimationFrame(animate);
     const delta = clock.getDelta();
     
-    // --- ЛОГИКА ДВИЖЕНИЯ ---
     let moveX = 0;
     let moveZ = 0;
 
-    // 1. Считываем ввод
     if (keys.w) moveZ = -1;
     if (keys.s) moveZ = 1;
     if (keys.a) moveX = -1;
     if (keys.d) moveX = 1;
 
-    // Джойстик имеет приоритет
     if (joystick.x !== 0 || joystick.y !== 0) {
         moveX = joystick.x;
         moveZ = joystick.y;
@@ -219,32 +232,22 @@ function animate() {
 
     const isMoving = (moveX !== 0 || moveZ !== 0);
 
-    // 2. Двигаем модель
     if (myPlayerModel && isMoving) {
         const speed = 5 * delta;
         myPlayerModel.position.x += moveX * speed;
         myPlayerModel.position.z += moveZ * speed;
 
-        // Поворачиваем модель в сторону движения
         const angle = Math.atan2(moveX, moveZ);
         myPlayerModel.rotation.y = angle;
 
-        // Камера следует за игроком
         camera.position.x = myPlayerModel.position.x;
         camera.position.z = myPlayerModel.position.z + 1.8;
         camera.lookAt(myPlayerModel.position.x, 0.8, myPlayerModel.position.z);
     }
 
-    // 3. Управление анимацией
     if (mixer) {
         if (runAction) {
-            if (isMoving) {
-                runAction.paused = false; // Бежим
-            } else {
-                runAction.paused = true; // Стоим (замираем в позе бега)
-                // В идеале тут нужно переключаться на анимацию Idle, 
-                // но пока её нет, просто "морозим" бег.
-            }
+            runAction.paused = !isMoving;
         }
         mixer.update(delta);
     }
@@ -255,10 +258,8 @@ function animate() {
 export function cleanupGame() {
     cancelAnimationFrame(animationId);
     window.removeEventListener('resize', onWindowResize);
-    // Удаляем слушатели клавиатуры (упрощенно)
     window.onkeydown = null;
     window.onkeyup = null;
-    
     if (renderer) renderer.dispose();
     if (containerEl) containerEl.innerHTML = '';
 }
