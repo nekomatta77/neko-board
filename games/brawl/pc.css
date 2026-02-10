@@ -6,6 +6,7 @@ body, html {
     background-color: #000;
 }
 
+/* КОНТЕЙНЕР ИГРЫ */
 #brawl-container {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
     background: #111; z-index: 9000;
@@ -30,15 +31,29 @@ canvas { display: block; width: 100% !important; height: 100% !important; outlin
     pointer-events: auto; cursor: pointer;
 }
 
-/* --- СКРЫВАЕМ МОБИЛЬНЫЕ ЭЛЕМЕНТЫ НА ПК --- */
-#joystick-zone { display: none !important; }
-#rotate-warning { display: none !important; }
-#start-screen { display: none !important; } /* На ПК не нужно жать старт */
-
 /* Подсказка управления для ПК */
 #pc-controls-hint {
     position: absolute; bottom: 20px; left: 20px;
     color: rgba(255,255,255,0.6);
     font-family: monospace; font-size: 16px;
     background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px;
+}
+
+/* --- СКРЫВАЕМ ЛИШНЕЕ НА ПК --- */
+
+/* 1. Скрываем мобильные элементы */
+#joystick-zone { display: none !important; }
+#rotate-warning { display: none !important; }
+#start-screen { display: none !important; }
+#mobile-actions { display: none !important; }
+
+/* 2. СКРЫВАЕМ ЧАТ (ГЛАВНОЕ ИЗМЕНЕНИЕ) */
+#chat-container, 
+.chat-area, 
+.chat-input-row, 
+#chat-messages {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
 }
