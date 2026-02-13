@@ -3,67 +3,6 @@ import { startChat, stopChat } from './chat.js';
 
 // --- НАСТРОЙКИ ---
 const INACTIVITY_LIMIT = 30 * 60 * 1000;
-const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-const currentPlatform = isIos ? 'iphone' : (isMobile ? 'android' : 'pc');
-
-// Загрузка стилей
-function loadPlatformStyles() {
-    const files = ['main', 'menu', 'lobby', 'game', 'chat'];
-    files.forEach(file => {
-        let link = document.querySelector(`link[href*="/${file}.css"]`) || document.querySelector(`link[href$="${file}.css"]`);
-        if (!link) {
-            link = document.createElement('link');
-            link.rel = 'stylesheet';
-            document.head.appendChild(link);
-        }
-        link.href = `css/${currentPlatform}/${file}.css`;
-    });
-
-    if (isMobile) {
-        let style = document.getElementById('orientation-style');
-        if (!style) {
-            style = document.createElement('style');
-            style.id = 'orientation-style';
-            style.textContent = `
-                #orientation-warning {
-                    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                    background: #111; z-index: 100000;
-                    display: none; flex-direction: column; align-items: center; justify-content: center;
-                    color: white; text-align: center;
-                }
-                #orientation-warning img { width: 80px; margin-bottom: 20px; animation: rotate-phone 2s infinite ease-in-out; }
-                @keyframes rotate-phone { 0% { transform: rotate(0deg); } 50% { transform: rotate(90deg); } 100% { transform: rotate(0deg); } }
-            `;
-            document.head.appendChild(style);
-
-            const warningDiv = document.createElement('div');
-            warningDiv.id = 'orientation-warning';
-            warningDiv.innerHTML = `
-                <div style="font-size:40px;">📱</div>
-                <h3>Пожалуйста, переверните устройство</h3>
-                <p>Режим "Brawl" работает горизонтально</p>
-            `;
-            document.body.appendChild(warningDiv);
-        }
-
-        function checkOrientation() {
-            const warning = document.getElementById('orientation-warning');
-            const isInGame = document.body.classList.contains('in-game');
-            const isPortrait = window.innerHeight > window.innerWidth;
-
-            if (isInGame && isPortrait) {
-                warning.style.display = 'flex';
-            } else {
-                warning.style.display = 'none';
-            }
-        }
-        window.addEventListener('resize', checkOrientation);
-        const observer = new MutationObserver(checkOrientation);
-        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-    }
-}
-loadPlatformStyles();
 
 let myUserId = localStorage.getItem('neko_user_id');
 if (!myUserId) {
@@ -89,7 +28,6 @@ const nextAvatarBtn = document.getElementById('next-avatar-btn');
 const prevAvatarBtn = document.getElementById('prev-avatar-btn');
 const fullscreenOverlay = document.getElementById('fullscreen-overlay');
 const closeFullscreenBtn = document.getElementById('close-fullscreen-btn');
-const activeGameTitle = document.getElementById('active-game-title');
 const fullscreenMount = document.getElementById('fullscreen-game-mount');
 
 let currentUser = null;
@@ -150,7 +88,7 @@ loginBtn.addEventListener('click', () => {
         showScreen(lobbyScreen);
         loadRooms();
     } else {
-        showNotification('Пожалуйста, введите ник!', 'error');
+        showNotification('Введите имя', 'error');
     }
 });
 
@@ -160,7 +98,7 @@ function updateProfileDisplay() {
             <img src="assets/avatars/ava${currentAvatarId}.png" class="profile-avatar">
             <div class="profile-text">
                 <span class="profile-name">${currentUser}</span>
-                <span class="profile-status">● Online</span>
+                <span class="profile-status">В сети</span>
             </div>
         </div>
     `;
@@ -189,7 +127,7 @@ createGameBtn.addEventListener('click', () => {
         currentRoomId = newRoomRef.key;
         amIHost = true;
         enterGameScreen(currentRoomId);
-        showNotification('Комната создана!');
+        showNotification('Комната создана');
     });
 });
 
@@ -200,7 +138,7 @@ function loadRooms() {
         roomsList.innerHTML = '';
         const data = snapshot.val();
         if (!data) {
-            roomsList.innerHTML = '<div class="empty-state">Нет активных комнат</div>';
+            roomsList.innerHTML = '<div style="text-align:center; padding:30px; color:#555;">Нет активных игр</div>';
             return;
         }
         const now = Date.now();
@@ -265,7 +203,7 @@ function joinRoom(roomId, maxPlayers) {
         }
 
         if (Object.keys(players).length >= maxPlayers) {
-            showNotification("Комната заполнена!", "error");
+            showNotification("Комната полная", "error");
             return;
         }
 
@@ -275,7 +213,6 @@ function joinRoom(roomId, maxPlayers) {
                 currentRoomId = roomId;
                 amIHost = false;
                 enterGameScreen(roomId);
-                showNotification('Вы вошли в комнату');
             });
     });
 }
@@ -294,13 +231,21 @@ function subscribeToRoom(roomId) {
 
     roomListener = onValue(roomRef, (snapshot) => {
         const room = snapshot.val();
+        
         if (!room) {
-            if (currentRoomId === roomId) { showNotification("Комната закрыта", "info"); handleLeave(true); }
+            if (currentRoomId === roomId) { 
+                showNotification("Хост закрыл комнату", "info"); 
+                handleLeave(true); 
+            }
             return;
         }
+
         if (room.players && !room.players[myUserId]) {
-             showNotification("Вы были исключены", "error"); handleLeave(true); return;
+             showNotification("Вас исключили", "error"); 
+             handleLeave(true); 
+             return;
         }
+
         if (room.players && room.players[myUserId]) {
             amIHost = room.players[myUserId].isHost;
         }
@@ -332,18 +277,18 @@ function renderPlayersList(playersObj) {
             kickButtonHtml = `<button class="kick-btn" onclick="kickPlayer('${pid}')">×</button>`;
         }
 
-        const readyStatus = player.isReady ? '<span class="status-ready">ГОТОВ</span>' : '<span class="status-waiting">...</span>';
+        const readyStatus = player.isReady ? '<span style="color:var(--success)">●</span>' : '<span style="color:#555">●</span>';
 
         el.innerHTML = `
+            ${kickButtonHtml}
             <div class="avatar-wrapper">
                 <img src="assets/avatars/ava${player.avatar}.png">
             </div>
             <div class="player-details">
-                <span class="player-name">${player.name}</span>
-                <small>${readyStatus}</small>
+                <div class="player-name">${player.name}</div>
+                <div>${readyStatus}</div>
             </div>
-            ${player.isHost ? '<span class="host-badge">👑</span>' : ''}
-            ${kickButtonHtml}
+            ${player.isHost ? '<span style="position:absolute; bottom:-5px; font-size:12px;">👑</span>' : ''}
         `;
         playersContainer.appendChild(el);
     });
@@ -353,27 +298,25 @@ function renderGameControls(room) {
     const selectionArea = document.getElementById('game-selection-area');
     const players = room.players || {};
     
-    // ИСПРАВЛЕНИЕ ОШИБКИ: Проверяем, существует ли мой игрок
     if (!players[myUserId]) return;
 
-    const allReady = Object.values(players).every(p => p.isReady);
+    const allReady = Object.values(players).length > 1 && Object.values(players).every(p => p.isReady);
 
     if (amIHost) {
         let gameCards = `
             <div class="games-grid-menu host-view">
                 <button class="game-card-btn ${room.selectedGame === 'tictac' ? 'selected' : ''}" onclick="selectGame('tictac')">
-                   <span>Крестики-Нолики</span>
+                   <span>⭕❌</span> Крестики
                 </button>
                 <button class="game-card-btn ${room.selectedGame === 'brawl' ? 'selected' : ''}" onclick="selectGame('brawl')">
-                   <span>Бравл</span>
+                   <span>🥊</span> Бравл
                 </button>
             </div>
         `;
         
         let startBtnState = (room.selectedGame && allReady) ? '' : 'disabled';
-        let startBtnText = !room.selectedGame ? "Выберите игру" : (!allReady ? "Ждем готовности..." : "НАЧАТЬ ИГРУ");
+        let startBtnText = !room.selectedGame ? "Выберите игру" : (!allReady ? "Ждем игроков..." : "НАЧАТЬ");
         
-        // БЕЗОПАСНЫЙ ДОСТУП к isReady
         const myReady = players[myUserId]?.isReady;
         const readyBtnHtml = `
             <button onclick="toggleReady()" class="ready-btn ${myReady ? 'is-ready' : ''}">
@@ -381,7 +324,9 @@ function renderGameControls(room) {
             </button>
         `;
 
-        selectionArea.innerHTML = readyBtnHtml + gameCards + `
+        selectionArea.innerHTML = `
+            ${readyBtnHtml}
+            ${gameCards}
             <div class="host-controls">
                 <button id="host-start-btn" class="action-btn" ${startBtnState}>${startBtnText}</button>
             </div>
@@ -395,17 +340,16 @@ function renderGameControls(room) {
         }, 0);
 
     } else {
-        // БЕЗОПАСНЫЙ ДОСТУП
         const myReady = players[myUserId]?.isReady;
-        let statusText = "Хост выбирает игру...";
-        if (room.selectedGame === 'tictac') statusText = "Выбрано: Крестики-Нолики";
-        if (room.selectedGame === 'brawl') statusText = "Выбрано: Бравл";
+        let statusText = "Ожидание хоста...";
+        if (room.selectedGame === 'tictac') statusText = "Игра: Крестики";
+        if (room.selectedGame === 'brawl') statusText = "Игра: Бравл";
 
         selectionArea.innerHTML = `
-            <div class="client-view">
-                <h3>${statusText}</h3>
+            <div class="client-view" style="text-align:center;">
+                <h3 style="margin-bottom:20px; color:#aaa; font-weight:400;">${statusText}</h3>
                 <button onclick="toggleReady()" class="ready-btn ${myReady ? 'is-ready' : ''}">
-                    ${myReady ? 'Я ГОТОВ (Отмена)' : 'ГОТОВ!'}
+                    ${myReady ? 'ОТМЕНА' : 'ГОТОВ!'}
                 </button>
             </div>
         `;
@@ -443,28 +387,14 @@ window.startGameTrigger = function(gameName) {
 async function loadGameModule(gameName) {
     document.body.classList.add('in-game');
 
-    fullscreenMount.innerHTML = '<div class="waiting-text">Подключение...</div>';
+    fullscreenMount.innerHTML = '<div style="color:white; text-align:center; padding-top:40vh; opacity:0.7;">Загрузка...</div>';
     fullscreenOverlay.classList.remove('hidden');
-    activeGameTitle.textContent = gameName.toUpperCase();
-
-    let gameCssFile = 'android.css'; 
-    if (currentPlatform === 'iphone') gameCssFile = 'iphone.css';
-    if (currentPlatform === 'pc') gameCssFile = 'pc.css';
+    // activeGameTitle - удалено
     
-    const oldCss = document.getElementById('game-module-css');
-    if (oldCss) oldCss.remove();
-
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = `games/${gameName}/${gameCssFile}`;
-    link.id = 'game-module-css';
-    document.head.appendChild(link);
-
     try {
         const gameModule = await import(`../games/${gameName}/${gameName}.js`);
         if (activeGameCleanup) activeGameCleanup();
         
-        // Ждем загрузки данных, чтобы не было ошибки
         const snap = await get(ref(db, `rooms/${currentRoomId}/players`));
         const playersData = snap.val();
 
@@ -475,7 +405,7 @@ async function loadGameModule(gameName) {
 
     } catch (error) {
         console.error("Game Load Error:", error);
-        fullscreenMount.innerHTML = `<div class="waiting-text error">Ошибка: ${error.message}</div>`;
+        fullscreenMount.innerHTML = `<div class="notification error" style="margin-top:100px;">Ошибка: ${error.message}</div>`;
         document.body.classList.remove('in-game');
     }
 }
@@ -512,24 +442,37 @@ function closeFullscreenGame() {
 }
 
 leaveGameBtn.addEventListener('click', () => {
-    if (currentRoomId) {
-        remove(ref(db, `rooms/${currentRoomId}/players/${myUserId}`)).then(() => {
-            get(ref(db, `rooms/${currentRoomId}/players`)).then(s => {
-                if (!s.exists()) remove(ref(db, `rooms/${currentRoomId}`));
-            });
-        });
+    if (!currentRoomId) return;
+
+    if (amIHost) {
+        if(confirm("Вы хост. Комната будет удалена. Выйти?")) {
+            remove(ref(db, `rooms/${currentRoomId}`))
+                .then(() => {
+                    handleLeave(false);
+                    showNotification("Комната удалена");
+                })
+                .catch(err => console.error(err));
+        }
+    } else {
+        remove(ref(db, `rooms/${currentRoomId}/players/${myUserId}`))
+            .then(() => {
+                handleLeave(false);
+            })
+            .catch(err => console.error(err));
     }
-    handleLeave();
 });
 
 function handleLeave(forced = false) {
-    if (typeof roomListener === 'function') roomListener();
+    if (typeof roomListener === 'function') {
+        roomListener(); 
+    }
     roomListener = null;
     currentRoomId = null;
     amIHost = false;
     stopChat();
     closeFullscreenGame();
     showScreen(lobbyScreen);
+    if (!forced) loadRooms();
 }
 
 function showScreen(screen) {

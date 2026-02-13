@@ -2,9 +2,11 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>NEKOgames</title>
     
+    <link rel="stylesheet" href="style.css">
+
     <script type="importmap">
     {
         "imports": {
@@ -13,8 +15,7 @@
         }
     }
     </script>
-
-    </head>
+</head>
 <body>
 
     <div id="notification-container"></div>
@@ -22,12 +23,10 @@
     <div id="auth-screen" class="screen">
         <header>
             <h1><span>NEKO</span>games</h1>
-            <div class="logo-icon"></div>
         </header>
 
         <div class="card">
             <h2>ВХОД</h2>
-            
             <div class="avatar-selection">
                 <button id="prev-avatar-btn" class="nav-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="15 18 9 12 15 6"></polyline></svg>
@@ -39,35 +38,30 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 18 15 12 9 6"></polyline></svg>
                 </button>
             </div>
-
-            <input type="text" id="username-input" placeholder="Твой никнейм" maxlength="12">
+            <input type="text" id="username-input" placeholder="Никнейм" maxlength="12">
             <button id="login-btn">ИГРАТЬ</button>
         </div>
     </div>
 
     <div id="lobby-screen" class="screen hidden">
         <div class="profile-header">
-            <div id="user-display"></div> </div>
+            <div id="user-display"></div> 
+        </div>
 
         <div class="content-wrapper">
             <div class="create-zone">
                 <div class="select-wrapper">
-                    <label>Игроков:</label>
                     <select id="players-count-select">
                         <option value="2">2 Игрока</option>
                         <option value="3">3 Игрока</option>
                         <option value="4">4 Игрока</option>
                     </select>
                 </div>
-                <button id="create-game-btn" class="action-btn">
-                    <span>+</span> СОЗДАТЬ
-                </button>
+                <button id="create-game-btn">СОЗДАТЬ</button>
             </div>
 
-            <h3>Активные комнаты</h3>
             <div class="scroll-area">
-                <div id="rooms-list">
-                    </div>
+                <div id="rooms-list"></div>
             </div>
         </div>
     </div>
@@ -75,11 +69,10 @@
     <div id="game-screen" class="screen hidden">
         <div class="game-header">
             <span id="room-id-display">Комната</span>
-            <button id="leave-game-btn" class="secondary-btn">Выйти</button>
+            <button id="leave-game-btn">Выйти</button>
         </div>
 
-        <div id="players-container">
-            </div>
+        <div id="players-container"></div>
         
         <div class="board-area">
             <div id="game-selection-area"></div>
@@ -88,17 +81,14 @@
         <div id="chat-container" class="chat-area">
             <div id="chat-messages" class="chat-messages"></div>
             <div class="chat-input-row">
-                <input type="text" id="chat-input" placeholder="Написать...">
+                <input type="text" id="chat-input" placeholder="Сообщение..." autocomplete="off">
                 <button id="send-chat-btn"></button>
             </div>
         </div>
     </div>
 
     <div id="fullscreen-overlay" class="hidden">
-        <div class="fullscreen-header">
-            <span id="active-game-title">Игра</span>
-            <button id="close-fullscreen-btn">Свернуть</button>
-        </div>
+        <button id="close-fullscreen-btn" class="floating-close-btn">×</button>
         <div id="fullscreen-game-mount"></div>
     </div>
 
