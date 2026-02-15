@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEKO TicTacToe</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        
+        body { 
+            margin: 0; 
+            background: #0f0f13; /* Темный фон под стиль лобби */
+            color: white; 
+            font-family: 'Inter', sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            overflow: hidden; 
+            user-select: none;
+        }
+
+        /* --- UI ИГРЫ --- */
+        .game-wrapper {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        /* Список игроков слева */
+        .players-list {
+            background: #1e1e24;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            min-width: 120px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .player-item {
+            font-size: 13px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            opacity: 0.5;
+            transition: all 0.3s;
+        }
+        .player-item.active {
+            opacity: 1;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.2);
+            font-weight: bold;
+        }
+        .player-icon { width: 10px; height: 10px; border-radius: 50%; }
+
+        /* Центр - Статус и Поле */
+        .center-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .status-badge {
+            font-size: 16px;
+            font-weight: 700;
+            padding: 10px 25px;
+            background: #1e1e24;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            min-width: 200px;
+            text-align: center;
+        }
+
+        #board { 
+            display: grid; 
+            gap: 4px; 
+            background: #2d2d35; 
+            padding: 8px; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        
+        .cell { 
+            background: #15151a; 
+            border-radius: 4px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            cursor: pointer; 
+            font-size: 28px; 
+            font-weight: 900; 
+            color: white; 
+            transition: all 0.1s; 
+        }
+        .cell:hover { background: #1f1f25; }
+        .cell:active { transform: scale(0.95); }
+        .cell.taken { cursor: default; background: #0f0f12; }
+        
+        /* ЦВЕТА ИГРОКОВ (НЕОН) */
+        .c0 { color: #ff4757; text-shadow: 0 0 12px rgba(255, 71, 87, 0.6); } /* Red */
+        .c1 { color: #2ed573; text-shadow: 0 0 12px rgba(46, 213, 115, 0.6); } /* Green */
+        .c2 { color: #1e90ff; text-shadow: 0 0 12px rgba(30, 144, 255, 0.6); } /* Blue */
+        .c3 { color: #ffa502; text-shadow: 0 0 12px rgba(255, 165, 2, 0.6); } /* Orange */
+        .c4 { color: #a55eea; text-shadow: 0 0 12px rgba(165, 94, 234, 0.6); } /* Purple */
+        .c5 { color: #00d2d3; text-shadow: 0 0 12px rgba(0, 210, 211, 0.6); } /* Cyan */
+
+        .bg0 { background: #ff4757; box-shadow: 0 0 8px #ff4757; }
+        .bg1 { background: #2ed573; box-shadow: 0 0 8px #2ed573; }
+        .bg2 { background: #1e90ff; box-shadow: 0 0 8px #1e90ff; }
+        .bg3 { background: #ffa502; box-shadow: 0 0 8px #ffa502; }
+        .bg4 { background: #a55eea; box-shadow: 0 0 8px #a55eea; }
+        .bg5 { background: #00d2d3; box-shadow: 0 0 8px #00d2d3; }
+
+        /* WIN SCREEN */
+        #win-overlay { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(15, 15, 19, 0.9); 
+            display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; 
+            z-index: 50; 
+            opacity: 0; pointer-events: none; transition: opacity 0.3s; 
+            backdrop-filter: blur(10px);
+        }
+        #win-overlay.active { opacity: 1; pointer-events: all; }
+        
+        #win-title { font-size: 50px; margin: 0; font-weight: 900; }
+        #win-name { font-size: 24px; color: #a0a0a0; margin-bottom: 30px; }
+
+        .btn-restart { 
+            padding: 15px 40px; 
+            background: linear-gradient(135deg, #6c5ce7, #a29bfe); 
+            border: none; border-radius: 50px; 
+            color: white; font-weight: bold; font-size: 18px; 
+            cursor: pointer; 
+            box-shadow: 0 10px 25px rgba(108, 92, 231, 0.4);
+            transition: transform 0.2s;
+        }
+        .btn-restart:hover { transform: scale(1.05); }
+
+        /* Адаптив для мобилок */
+        @media (max-width: 600px) {
+            .game-wrapper { flex-direction: column-reverse; align-items: center; }
+            .players-list { flex-direction: row; width: 90%; justify-content: center; flex-wrap: wrap; }
+            #board { gap: 2px; padding: 5px; }
+            .cell { border-radius: 2px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-wrapper">
+        <div class="players-list" id="players-list-ui">
+            <div style="font-size:10px; color:#666; text-align:center; width:100%;">Waiting...</div>
+        </div>
+
+        <div class="center-area">
+            <div id="status-text" class="status-badge" style="color: #666;">Connecting...</div>
+            <div id="board"></div>
+        </div>
+    </div>
+
+    <div id="win-overlay">
+        <div id="win-title">WINNER</div>
+        <div id="win-name">Player Name</div>
+        <button class="btn-restart" onclick="restartGame()">PLAY AGAIN</button>
+    </div>
+
+    <script>
+        // --- 1. CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyC5E-bN2LNWElo7I4kcCGqcgMvoy8WX4wY",
+            authDomain: "neko-board.firebaseapp.com",
+            databaseURL: "https://neko-board-default-rtdb.firebaseio.com",
+            projectId: "neko-board",
+            storageBucket: "neko-board.firebasestorage.app",
+            messagingSenderId: "758590553576",
+            appId: "1:758590553576:web:b3d006e91390d1d4f3385d",
+            measurementId: "G-G9X92RCNM4"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // --- 2. PARAMS & CONSTANTS ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room');
+        const maxPlayers = parseInt(urlParams.get('max')) || 2;
+        const username = urlParams.get('user') || 'Anon';
+        
+        const BOARD_SIZE = maxPlayers > 2 ? 15 : 3;
+        const WIN_LENGTH = maxPlayers > 2 ? 5 : 3;
+        const SYMBOLS = ['✕', '◯', '△', '□', '☆', '◇'];
+
+        // Refs
+        const roomRef = db.ref(`rooms/${roomId}`);
+        const playersRef = roomRef.child('playersList');
+        const gameRef = roomRef.child('game');
+
+        // State
+        let myPlayerIndex = -1;
+        let activePlayers = []; 
+        let gameState = { 
+            board: Array(BOARD_SIZE * BOARD_SIZE).fill(null), 
+            turn: 0, 
+            winner: null 
+        };
+
+        // --- 3. INITIALIZATION ---
+        initBoard();
+        joinRoom();
+
+        function initBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.style.gridTemplateColumns = `repeat(${BOARD_SIZE}, 1fr)`;
+            
+            // Размер клеток
+            const size = maxPlayers > 2 ? '22px' : '90px';
+            const fontSize = maxPlayers > 2 ? '14px' : '40px';
+
+            boardEl.innerHTML = '';
+            for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.style.width = size;
+                cell.style.height = size;
+                cell.style.fontSize = fontSize;
+                cell.onclick = () => handleMove(i);
+                boardEl.appendChild(cell);
+            }
+        }
+
+        // --- 4. JOIN LOGIC (TRANSACTION) ---
+        function joinRoom() {
+            playersRef.transaction((currentData) => {
+                if (currentData === null) return [{ name: username, joined: Date.now() }];
+                
+                // Преобразуем в массив, если это объект (Firebase фича)
+                const players = Object.values(currentData);
+                
+                // Если я уже там
+                const isHere = players.some(p => p.name === username);
+                if (!isHere) {
+                    if (players.length < maxPlayers) {
+                        players.push({ name: username, joined: Date.now() });
+                        return players;
+                    }
+                }
+                return; // Ничего не меняем (или уже там, или комната полна)
+            }, (error, committed, snapshot) => {
+                if (error) {
+                    console.error("Join failed", error);
+                } else if (committed || snapshot.val()) {
+                    // Успешный вход (или уже были внутри)
+                    // Важно: Теперь мы ждем обновления от слушателя, чтобы точно знать свой индекс
+                    startListeners();
+                } else {
+                    document.getElementById('status-text').innerText = "Room Full";
+                }
+            });
+        }
+
+        // --- 5. GAME LOOP & LISTENERS ---
+        function startListeners() {
+            // A. Слушаем список игроков
+            playersRef.on('value', (snap) => {
+                const val = snap.val();
+                if (!val) return;
+
+                // 1. Приводим к массиву и СОРТИРУЕМ по времени входа
+                // Это исправляет баг "Unknown turn", так как порядок теперь жесткий
+                activePlayers = Object.values(val).sort((a, b) => a.joined - b.joined);
+                
+                // 2. Определяем кто я в этом отсортированном списке
+                myPlayerIndex = activePlayers.findIndex(p => p.name === username);
+
+                // 3. Обновляем UI списка игроков
+                updatePlayersUI();
+                
+                // 4. Обновляем статус игры
+                updateGameUI();
+                
+                // 5. Обновляем счетчик в лобби (опционально)
+                roomRef.update({ currentPlayers: activePlayers.length });
+            });
+
+            // B. Слушаем состояние игры (ходы)
+            gameRef.on('value', (snap) => {
+                const data = snap.val();
+                
+                if (data) {
+                    // Принимаем данные
+                    gameState = data;
+                    // Фикс массива (если Firebase вернул объект)
+                    if (!Array.isArray(gameState.board)) {
+                        gameState.board = Array.from(Object.values(gameState.board || {}));
+                        while(gameState.board.length < BOARD_SIZE*BOARD_SIZE) gameState.board.push(null);
+                    }
+                    
+                    updateGameUI();
+                } else {
+                    // Если игры нет в базе, Хост (Игрок 0) её создает
+                    if (myPlayerIndex === 0) {
+                        gameRef.set({
+                            board: Array(BOARD_SIZE * BOARD_SIZE).fill(null),
+                            turn: 0,
+                            winner: null
+                        });
+                    }
+                }
+            });
+
+            // C. Слушаем закрытие комнаты
+            roomRef.on('child_removed', (snap) => {
+                // Если удален playersList или game - выход
+                document.getElementById('status-text').innerText = "Room Closed";
+                setTimeout(() => window.parent.postMessage({type:'NEKO_EVENT', action:'EXIT'}, '*'), 1500);
+            });
+        }
+
+        // --- 6. UI UPDATES ---
+        function updatePlayersUI() {
+            const listEl = document.getElementById('players-list-ui');
+            listEl.innerHTML = '';
+            
+            activePlayers.forEach((p, idx) => {
+                const isMe = idx === myPlayerIndex;
+                const isCurrentTurn = (gameState.turn % activePlayers.length) === idx && activePlayers.length >= 2;
+                
+                const div = document.createElement('div');
+                div.className = `player-item ${isCurrentTurn ? 'active' : ''}`;
+                div.innerHTML = `
+                    <div class="player-icon bg${idx}"></div>
+                    <span style="${isMe ? 'color:white' : 'color:#aaa'}">${p.name}</span>
+                    ${isMe ? '(YOU)' : ''}
+                `;
+                listEl.appendChild(div);
+            });
+        }
+
+        function updateGameUI() {
+            // 1. Доска
+            const cells = document.querySelectorAll('.cell');
+            gameState.board.forEach((val, i) => {
+                cells[i].innerHTML = (val !== null && val !== undefined) ? SYMBOLS[val] : '';
+                cells[i].className = `cell ${(val !== null && val !== undefined) ? 'taken c'+val : ''}`;
+            });
+
+            // 2. Статус
+            const statusEl = document.getElementById('status-text');
+            
+            // Если есть победитель
+            if (gameState.winner !== null && gameState.winner !== undefined) {
+                showWinScreen(gameState.winner);
+                statusEl.innerText = "Game Over";
+                return;
+            } else {
+                document.getElementById('win-overlay').classList.remove('active');
+            }
+
+            // Если мало игроков
+            if (activePlayers.length < 2) {
+                statusEl.innerText = `Waiting (${activePlayers.length}/${maxPlayers})`;
+                statusEl.style.color = "#666";
+                statusEl.style.borderColor = "#333";
+                statusEl.style.boxShadow = "none";
+                return;
+            }
+
+            // Чей ход
+            const turnIdx = gameState.turn % activePlayers.length;
+            const playerObj = activePlayers[turnIdx];
+            
+            if (!playerObj) return; // Защита от рендера до загрузки
+
+            if (turnIdx === myPlayerIndex) {
+                statusEl.innerText = "YOUR TURN";
+                statusEl.style.color = "#2ed573";
+                statusEl.style.borderColor = "#2ed573";
+                statusEl.style.boxShadow = "0 0 15px rgba(46, 213, 115, 0.3)";
+            } else {
+                statusEl.innerText = `${playerObj.name}'s Turn`;
+                statusEl.style.color = "white";
+                statusEl.style.borderColor = "rgba(255,255,255,0.1)";
+                statusEl.style.boxShadow = "none";
+            }
+        }
+
+        function showWinScreen(winnerIdx) {
+            const overlay = document.getElementById('win-overlay');
+            const title = document.getElementById('win-title');
+            const name = document.getElementById('win-name');
+            
+            overlay.classList.add('active');
+            
+            const winnerObj = activePlayers[winnerIdx];
+            const winnerName = winnerObj ? winnerObj.name : "Unknown";
+            
+            if (winnerIdx === myPlayerIndex) {
+                title.innerText = "YOU WON!";
+                title.style.color = "#2ed573";
+                name.innerText = "+100 Score";
+                // Отправляем очки (один раз)
+                if (!window.scoreSent) {
+                    window.parent.postMessage({ type: 'NEKO_EVENT', action: 'SAVE_SCORE', payload: { score: 100 } }, '*');
+                    window.scoreSent = true;
+                }
+            } else {
+                title.innerText = "DEFEAT";
+                title.style.color = "#ff4757";
+                name.innerText = `Winner: ${winnerName}`;
+                window.scoreSent = false;
+            }
+        }
+
+        // --- 7. GAME LOGIC ---
+        function handleMove(i) {
+            // Проверки
+            if (gameState.winner !== null) return;
+            if (activePlayers.length < 2) return;
+            
+            const turnIdx = gameState.turn % activePlayers.length;
+            if (turnIdx !== myPlayerIndex) return; // Не мой ход
+            if (gameState.board[i] !== null) return; // Занято
+
+            // Логика
+            gameState.board[i] = myPlayerIndex;
+            gameState.turn++;
+            
+            // Проверка победы
+            if (checkWin(i, myPlayerIndex)) {
+                gameState.winner = myPlayerIndex;
+            }
+
+            // Сохранение
+            gameRef.set(gameState);
+        }
+
+        function checkWin(idx, player) {
+            const s = BOARD_SIZE;
+            const x = idx % s; 
+            const y = Math.floor(idx / s);
+            const dirs = [[1,0], [0,1], [1,1], [1,-1]]; // Hor, Ver, Diag1, Diag2
+
+            for (let [dx, dy] of dirs) {
+                let count = 1;
+                // В одну сторону
+                for (let i = 1; i < WIN_LENGTH; i++) {
+                    const nx = x + dx*i, ny = y + dy*i;
+                    if (nx<0 || nx>=s || ny<0 || ny>=s) break;
+                    if (gameState.board[ny*s+nx] !== player) break;
+                    count++;
+                }
+                // В другую
+                for (let i = 1; i < WIN_LENGTH; i++) {
+                    const nx = x - dx*i, ny = y - dy*i;
+                    if (nx<0 || nx>=s || ny<0 || ny>=s) break;
+                    if (gameState.board[ny*s+nx] !== player) break;
+                    count++;
+                }
+                if (count >= WIN_LENGTH) return true;
+            }
+            return false;
+        }
+
+        function restartGame() {
+            // Только хост или победитель могут рестартнуть
+            // Но лучше разрешить любому, чтобы не ждать
+            gameRef.set({
+                board: Array(BOARD_SIZE * BOARD_SIZE).fill(null),
+                turn: 0,
+                winner: null
+            });
+            window.scoreSent = false;
+        }
+    </script>
+</body>
+</html>

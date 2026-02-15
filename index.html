@@ -2,97 +2,571 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEKOgames</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEKOboard</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f0f13">
 
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-        }
-    }
-    </script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
 
-    <div id="notification-container"></div>
+    <canvas id="bg-canvas"></canvas>
 
-    <div id="auth-screen" class="screen">
+    <div id="toast-container"></div>
+
+    <div id="create-room-modal" class="modal-overlay">
+        <div class="modal-window">
+            <h3>Создание комнаты</h3>
+            
+            <input type="text" id="room-name-input" placeholder="Название комнаты" maxlength="20">
+            
+            <div class="range-wrap">
+                <label style="color: #a0a0a0; font-size: 14px;">Количество игроков</label>
+                <span id="players-count-display" class="range-value">2</span>
+                <input type="range" id="players-range" min="2" max="6" value="2" oninput="document.getElementById('players-count-display').innerText = this.value">
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button class="main-btn" onclick="closeModal()" style="background: #444;">Отмена</button>
+                <button class="main-btn" onclick="createRoom()">Создать</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="login-screen" class="screen">
+        <div class="login-wrapper">
+            <div class="login-card">
+                <h2>NEKOboard</h2>
+                <p>Ваша игровая мультивселенная</p>
+                
+                <div id="avatar-grid" class="avatar-grid"></div>
+                <input type="text" id="nickname-input" placeholder="Введите никнейм" maxlength="12">
+                
+                <button onclick="saveProfile()" class="main-btn" onmouseenter="audio.hover()">
+                    <span>Войти</span>
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="lobby" class="screen hidden">
         <header>
-            <h1><span>NEKO</span>games</h1>
+            <div class="logo">
+                <svg class="icon-lg" viewBox="0 0 24 24" stroke="#6c5ce7"><path d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"/></svg>
+                <div>NEKO<span>board</span></div>
+            </div>
+            
+            <div class="header-right">
+                <div class="user-profile" onclick="logout()" onmouseenter="audio.hover()">
+                    <div class="profile-info">
+                        <span id="display-name">Guest</span>
+                        <span id="user-status">ONLINE</span>
+                    </div>
+                    <img id="display-avatar" src="" alt="Avatar">
+                </div>
+            </div>
         </header>
 
-        <div class="card">
-            <h2>ВХОД</h2>
-            <div class="avatar-selection">
-                <button id="prev-avatar-btn" class="nav-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                </button>
-                <div class="avatar-frame">
-                    <img id="current-avatar-img" src="assets/avatars/ava1.png" alt="Avatar">
+        <div class="tabs-container">
+            <button class="tab-btn active" onclick="switchTab('games')" id="tab-games" onmouseenter="audio.hover()">
+                <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4M15 11h.01M18 13h.01"/></svg>
+                Игры
+            </button>
+            <button class="tab-btn" onclick="switchTab('servers')" id="tab-servers" onmouseenter="audio.hover()">
+                <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                Сервера
+            </button>
+        </div>
+
+        <div id="content-games" class="games-grid">
+            <div class="game-card" onclick="openCreateModal('tictactoe')" onmouseenter="audio.hover()">
+                <div class="game-icon" style="background: linear-gradient(45deg, #a18cd1, #fbc2eb);">
+                     <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><path d="M3 3l18 18M21 3L3 21"/></svg>
                 </div>
-                <button id="next-avatar-btn" class="nav-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                <h3>Tic-Tac-Toe Online</h3>
+            </div>
+            
+            <div class="game-card" onclick="openGame('games/shooter/index.html', 'shooter', null)" onmouseenter="audio.hover()">
+                <div class="game-icon" style="background: linear-gradient(45deg, #ff9a9e, #fad0c4);">
+                    <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4M15 11h.01M18 13h.01"/></svg>
+                </div>
+                <h3>Brawl Shooter</h3>
+            </div>
+
+            <div class="game-card" onclick="openGame('games/colorglass/index.html', 'colorglass', null)" onmouseenter="audio.hover()">
+                <div class="game-icon" style="background: linear-gradient(45deg, #84fab0, #8fd3f4);">
+                     <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+                </div>
+                <h3>Color Glass</h3>
+            </div>
+        </div>
+
+        <div id="content-servers" class="server-list hidden">
+            <div style="text-align: center; color: #666; padding: 20px;">Загрузка списка комнат...</div>
+        </div>
+    </div>
+
+    <div id="floating-chat" class="floating-chat-container hidden">
+        <div id="chat-window" class="chat-window">
+            <div class="chat-header">
+                <div style="display:flex; align-items:center; gap:10px;"><div class="online-status"></div>Global Chat</div>
+                <div style="cursor:pointer;" onclick="toggleChat()"><svg class="icon" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+            </div>
+            <div id="chat-messages" class="chat-messages">
+                <div style="text-align:center; opacity:0.5; font-size:12px; margin-top:20px;">System: Connected</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Message..." maxlength="50">
+                <button onclick="sendMessage()" class="send-btn" onmouseenter="audio.hover()">
+                    <svg class="icon-lg" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
                 </button>
             </div>
-            <input type="text" id="username-input" placeholder="Никнейм" maxlength="12">
-            <button id="login-btn">ИГРАТЬ</button>
         </div>
+        <button class="chat-toggle-btn" onclick="toggleChat()" onmouseenter="audio.hover()">
+            <svg class="icon-lg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </button>
     </div>
 
-    <div id="lobby-screen" class="screen hidden">
-        <div class="profile-header">
-            <div id="user-display"></div> 
-        </div>
+    <div class="floating-sound-container hidden" id="sound-container">
+        <button class="sound-toggle-btn" id="sound-btn" onclick="toggleMute()" onmouseenter="audio.hover()">
+            <svg class="icon-lg" viewBox="0 0 24 24" stroke="currentColor"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+        </button>
+    </div>
 
-        <div class="content-wrapper">
-            <div class="create-zone">
-                <div class="select-wrapper">
-                    <select id="players-count-select">
-                        <option value="2">2 Игрока</option>
-                        <option value="3">3 Игрока</option>
-                        <option value="4">4 Игрока</option>
-                    </select>
-                </div>
-                <button id="create-game-btn">СОЗДАТЬ</button>
+    <div id="game-container" class="screen hidden">
+        <div class="game-controls">
+            <div class="control-btn" onclick="closeGame()" onmouseenter="audio.hover()">
+                <svg class="icon-lg" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             </div>
-
-            <div class="scroll-area">
-                <div id="rooms-list"></div>
+            <div class="control-btn" onclick="toggleFullscreen()" onmouseenter="audio.hover()">
+                <svg class="icon-lg" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
             </div>
         </div>
+        <iframe id="game-frame" src="" frameborder="0"></iframe>
     </div>
 
-    <div id="game-screen" class="screen hidden">
-        <div class="game-header">
-            <span id="room-id-display">Комната</span>
-            <button id="leave-game-btn">Выйти</button>
-        </div>
+    <script>
+        // --- CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyC5E-bN2LNWElo7I4kcCGqcgMvoy8WX4wY",
+            authDomain: "neko-board.firebaseapp.com",
+            databaseURL: "https://neko-board-default-rtdb.firebaseio.com",
+            projectId: "neko-board",
+            storageBucket: "neko-board.firebasestorage.app",
+            messagingSenderId: "758590553576",
+            appId: "1:758590553576:web:b3d006e91390d1d4f3385d",
+            measurementId: "G-G9X92RCNM4"
+        };
 
-        <div id="players-container"></div>
-        
-        <div class="board-area">
-            <div id="game-selection-area"></div>
-        </div>
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const chatRef = db.ref('global_chat');
+        const statusRef = db.ref('status');
+        const leaderboardsRef = db.ref('leaderboards');
+        const roomsRef = db.ref('rooms');
 
-        <div id="chat-container" class="chat-area">
-            <div id="chat-messages" class="chat-messages"></div>
-            <div class="chat-input-row">
-                <input type="text" id="chat-input" placeholder="Сообщение..." autocomplete="off">
-                <button id="send-chat-btn"></button>
-            </div>
-        </div>
-    </div>
+        let currentUser = null;
+        let currentGameId = null;
+        let currentRoomHost = null; 
+        let selectedAvatar = 'ava1.png';
+        let selectedGameType = '';
 
-    <div id="fullscreen-overlay" class="hidden">
-        <button id="close-fullscreen-btn" class="floating-close-btn">×</button>
-        <div id="fullscreen-game-mount"></div>
-    </div>
+        // --- AUDIO ---
+        const audio = {
+            ctx: null, enabled: false,
+            init: function() {
+                if(!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    this.enabled = true;
+                    this.updateIcon();
+                    this.notify();
+                } else {
+                    if(this.ctx.state === 'suspended') this.ctx.resume();
+                }
+            },
+            playNote: function(freq, type, duration, volume = 0.1) {
+                if(!this.enabled || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(volume, this.ctx.currentTime + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            },
+            hover: function() { this.playNote(1000, 'sine', 0.1, 0.02); },
+            click: function() { 
+                this.playNote(600, 'triangle', 0.15, 0.1);
+                this.playNote(1200, 'sine', 0.1, 0.05); 
+            },
+            notify: function() { 
+                if(!this.enabled) return;
+                const now = this.ctx.currentTime;
+                this.playNote(523.25, 'sine', 0.4, 0.1); 
+                setTimeout(() => this.playNote(659.25, 'sine', 0.4, 0.1), 50); 
+                setTimeout(() => this.playNote(783.99, 'sine', 0.6, 0.1), 100); 
+            },
+            updateIcon: function() {
+                const btn = document.getElementById('sound-btn');
+                if(this.enabled) {
+                    btn.classList.add('active');
+                    btn.innerHTML = `<svg class="icon-lg" viewBox="0 0 24 24" stroke="currentColor"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93L15.54 8.46a5 5 0 0 0 0 7.07l3.53 3.53"/></svg>`;
+                } else {
+                    btn.classList.remove('active');
+                    btn.innerHTML = `<svg class="icon-lg" viewBox="0 0 24 24" stroke="currentColor"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`;
+                }
+            }
+        };
 
-    <script type="module" src="js/app.js"></script>
+        function toggleMute() {
+            if(!audio.ctx) { audio.init(); } 
+            else {
+                audio.enabled = !audio.enabled;
+                audio.updateIcon();
+                if(audio.enabled) audio.click();
+            }
+        }
 
+        // --- ROOMS ---
+        function switchTab(tab) {
+            audio.click();
+            document.getElementById('tab-games').classList.toggle('active', tab === 'games');
+            document.getElementById('tab-servers').classList.toggle('active', tab === 'servers');
+            
+            if(tab === 'games') {
+                document.getElementById('content-games').classList.remove('hidden');
+                document.getElementById('content-servers').classList.add('hidden');
+            } else {
+                document.getElementById('content-games').classList.add('hidden');
+                document.getElementById('content-servers').classList.remove('hidden');
+                loadServers(); 
+            }
+        }
+
+        function openCreateModal(gameType) {
+            audio.click();
+            selectedGameType = gameType;
+            document.getElementById('create-room-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            audio.click();
+            document.getElementById('create-room-modal').classList.remove('active');
+        }
+
+        function createRoom() {
+            audio.click();
+            const name = document.getElementById('room-name-input').value.trim() || "Room";
+            const max = parseInt(document.getElementById('players-range').value);
+            const ref = roomsRef.push();
+            
+            // ВАЖНО: Инициализируем игру сразу
+            const boardSize = max > 2 ? 15 : 3;
+            const initialGame = {
+                board: Array(boardSize * boardSize).fill(null),
+                turn: 0,
+                winner: null
+            };
+
+            ref.set({
+                id: ref.key,
+                name: name,
+                gameType: selectedGameType, // используем gameType чтобы не путаться с объектом game
+                game: initialGame,          // Сама игра
+                maxPlayers: max,
+                currentPlayers: 0,
+                host: currentUser.name,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            }).then(() => {
+                closeModal();
+                joinGame(ref.key, selectedGameType, max, currentUser.name);
+            });
+        }
+
+        function loadServers() {
+            const list = document.getElementById('content-servers');
+            list.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Загрузка...</div>';
+            
+            roomsRef.limitToLast(20).on('value', snapshot => {
+                list.innerHTML = '';
+                if(!snapshot.exists()) {
+                    list.innerHTML = '<div style="text-align:center; opacity:0.5; padding: 20px;">Нет активных серверов</div>';
+                    return;
+                }
+                
+                snapshot.forEach(child => {
+                    const room = child.val();
+                    const card = document.createElement('div');
+                    card.className = 'server-card';
+                    card.onclick = () => { audio.click(); joinGame(room.id, room.gameType, room.maxPlayers, room.host); };
+                    card.onmouseenter = () => audio.hover();
+                    const gameName = room.gameType ? room.gameType.toUpperCase() : "GAME";
+                    
+                    card.innerHTML = `
+                        <div class="server-info">
+                            <h4>${room.name}</h4>
+                            <div class="server-meta">
+                                <span><svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ${room.currentPlayers || 0}/${room.maxPlayers}</span>
+                                <span>${gameName}</span>
+                            </div>
+                        </div>
+                        <button class="join-btn">JOIN</button>
+                    `;
+                    list.appendChild(card);
+                });
+            });
+        }
+
+        function joinGame(roomId, gameType, maxPlayers, hostName) {
+            const url = `games/${gameType}/index.html?room=${roomId}&max=${maxPlayers}&user=${encodeURIComponent(currentUser.name)}`;
+            openGame(url, roomId, hostName);
+        }
+
+        // --- GENERAL ---
+        window.onload = function() {
+            initParticles();
+            
+            const grid = document.getElementById('avatar-grid');
+            for (let i = 1; i <= 20; i++) {
+                let img = document.createElement('img');
+                img.src = `assets/avatars/ava${i}.png`; 
+                img.className = 'avatar-option';
+                img.onerror = function() { this.style.backgroundColor = '#333'; };
+                img.onclick = function() { selectAvatar(this, `ava${i}.png`); audio.click(); };
+                img.onmouseenter = function() { audio.hover(); };
+                if (i === 1) img.classList.add('selected');
+                grid.appendChild(img);
+            }
+
+            const savedData = localStorage.getItem('nekoProfile');
+            if (savedData) {
+                currentUser = JSON.parse(savedData);
+                enterLobby(currentUser.name, currentUser.avatar);
+            }
+
+            initChatListener();
+            setupSDKListener();
+        };
+
+        function selectAvatar(el, file) {
+            document.querySelectorAll('.avatar-option').forEach(img => img.classList.remove('selected'));
+            el.classList.add('selected');
+            selectedAvatar = file;
+        }
+
+        function saveProfile() {
+            audio.init();
+            const nickname = document.getElementById('nickname-input').value.trim();
+            if (!nickname) return;
+            const profile = { name: nickname, avatar: selectedAvatar };
+            localStorage.setItem('nekoProfile', JSON.stringify(profile));
+            currentUser = profile;
+            enterLobby(profile.name, profile.avatar);
+        }
+
+        function enterLobby(name, avatar) {
+            document.getElementById('display-name').innerText = name;
+            document.getElementById('display-avatar').src = `assets/avatars/${avatar}`;
+            updateUserStatus('ONLINE');
+            
+            const login = document.getElementById('login-screen');
+            login.style.opacity = '0';
+            setTimeout(() => {
+                login.classList.add('hidden');
+                document.getElementById('lobby').classList.remove('hidden');
+                document.getElementById('floating-chat').classList.remove('hidden');
+                document.getElementById('sound-container').classList.remove('hidden');
+                switchTab('games');
+            }, 300);
+        }
+
+        function updateUserStatus(status) {
+            document.getElementById('user-status').innerText = status;
+            document.getElementById('user-status').style.color = status === 'ONLINE' ? '#00b894' : '#a29bfe';
+            if (currentUser) {
+                statusRef.child(currentUser.name).set({ status: status, lastSeen: firebase.database.ServerValue.TIMESTAMP });
+            }
+        }
+
+        function logout() {
+            audio.click();
+            if(confirm("Logout?")) { localStorage.removeItem('nekoProfile'); location.reload(); }
+        }
+
+        // --- CHAT ---
+        function toggleChat() {
+            audio.click();
+            const win = document.getElementById('chat-window');
+            win.classList.toggle('active');
+            if(win.classList.contains('active')) setTimeout(() => document.getElementById('chat-input').focus(), 100);
+        }
+
+        function sendMessage() {
+            audio.click();
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text || !currentUser) return;
+            chatRef.push({ name: currentUser.name, text: text, timestamp: firebase.database.ServerValue.TIMESTAMP });
+            input.value = ""; 
+        }
+
+        document.getElementById('chat-input').addEventListener("keypress", (e) => { if (e.key === "Enter") sendMessage(); });
+
+        function initChatListener() {
+            chatRef.limitToLast(50).on('child_added', (snap) => {
+                const msg = snap.val();
+                if(!msg) return;
+                audio.notify();
+                const container = document.getElementById('chat-messages');
+                const div = document.createElement('div');
+                div.className = 'chat-msg';
+                div.innerHTML = `<strong>${(msg.name||"Anon").replace(/</g,"&lt;")}</strong> ${(msg.text||"").replace(/</g,"&lt;")}`;
+                container.appendChild(div);
+                container.scrollTop = container.scrollHeight;
+            });
+        }
+
+        function setupSDKListener() {
+            window.addEventListener('message', function(event) {
+                const data = event.data;
+                if (data.type === 'NEKO_EVENT' && currentUser && currentGameId) {
+                    if (data.action === 'SAVE_SCORE') {
+                        const score = parseInt(data.payload.score);
+                        leaderboardsRef.child(currentGameId).child(currentUser.name).set({
+                            score: score,
+                            avatar: currentUser.avatar,
+                            timestamp: firebase.database.ServerValue.TIMESTAMP
+                        }).then(() => {
+                            showToast(`🏆 Score Saved: ${score}`);
+                            audio.notify();
+                        });
+                    }
+                    if (data.action === 'EXIT') {
+                        closeGame();
+                        showToast("Room closed");
+                    }
+                }
+            });
+        }
+
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `<svg class="icon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> <span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+        }
+
+        // --- GAME CONTROL ---
+        function openGame(url, gameId, hostName) {
+            audio.click();
+            currentGameId = gameId;
+            currentRoomHost = hostName;
+            const lobby = document.getElementById('lobby');
+            const gc = document.getElementById('game-container');
+            
+            lobby.style.opacity = '0';
+            document.getElementById('floating-chat').classList.add('hidden');
+            document.getElementById('sound-container').classList.add('hidden');
+            updateUserStatus(`PLAYING`);
+
+            setTimeout(() => {
+                lobby.classList.add('hidden');
+                gc.classList.remove('hidden');
+                document.getElementById('game-frame').src = url;
+                lobby.style.opacity = '1';
+            }, 300);
+        }
+
+        function closeGame() {
+            audio.click();
+            if (document.fullscreenElement) document.exitFullscreen();
+            
+            // Если я Хост и это сетевая игра (есть ID) - удаляем комнату
+            if (currentGameId && currentRoomHost === currentUser.name) {
+                roomsRef.child(currentGameId).remove();
+                showToast("Server closed by Host");
+            }
+
+            currentGameId = null;
+            currentRoomHost = null;
+            document.getElementById('game-frame').src = '';
+            document.getElementById('game-container').classList.add('hidden');
+            document.getElementById('lobby').classList.remove('hidden');
+            document.getElementById('floating-chat').classList.remove('hidden');
+            document.getElementById('sound-container').classList.remove('hidden');
+            updateUserStatus('ONLINE');
+        }
+
+        function toggleFullscreen() {
+            const elem = document.documentElement;
+            if (!document.fullscreenElement) elem.requestFullscreen().catch(err => alert(`Error: ${err.message}`));
+            else document.exitFullscreen();
+            audio.click();
+        }
+
+        // --- PARTICLES ---
+        function initParticles() {
+            const canvas = document.getElementById('bg-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            let particles = [];
+            class Particle {
+                constructor() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.vx = (Math.random() - 0.5) * 0.5;
+                    this.vy = (Math.random() - 0.5) * 0.5;
+                    this.size = Math.random() * 2;
+                }
+                update() {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                    if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+                }
+                draw() {
+                    ctx.fillStyle = 'rgba(108, 92, 231, 0.5)';
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            for (let i = 0; i < 50; i++) particles.push(new Particle());
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                for (let i = 0; i < particles.length; i++) {
+                    particles[i].update();
+                    particles[i].draw();
+                    for (let j = i; j < particles.length; j++) {
+                        const dx = particles[i].x - particles[j].x;
+                        const dy = particles[i].y - particles[j].y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < 100) {
+                            ctx.strokeStyle = `rgba(108, 92, 231, ${0.1 - dist/1000})`;
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.moveTo(particles[i].x, particles[i].y);
+                            ctx.lineTo(particles[j].x, particles[j].y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+                requestAnimationFrame(animate);
+            }
+            animate();
+            window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+        }
+    </script>
 </body>
 </html>
