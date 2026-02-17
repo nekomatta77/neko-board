@@ -1,44 +1,53 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap');
+/* --- css/main.css --- */
 
 :root {
     --bg-color: #0f0f13;
-    --card-bg: #1e1e24;
-    --accent-gradient: linear-gradient(135deg, #6c5ce7, #a29bfe);
-    --glass-bg: rgba(255, 255, 255, 0.05);
-    --glass-border: rgba(255, 255, 255, 0.1);
     --text-primary: #ffffff;
     --text-secondary: #a0a0a0;
+    --card-bg: #1e1e24;
+    --accent: #6c5ce7;
     --success: #00b894;
-    --danger: #ff4757;
-    --floating-z: 1000;
+    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
 }
 
-body {
+body, html {
     margin: 0; padding: 0;
-    font-family: 'Inter', sans-serif;
+    width: 100%; height: 100%;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: var(--bg-color);
     color: var(--text-primary);
-    overflow: hidden;
-    user-select: none;
+    overflow: hidden; /* Скролл только внутри #lobby */
+    -webkit-tap-highlight-color: transparent;
 }
 
+/* Канвас фона на самом заднем плане */
 #bg-canvas {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    z-index: -1; pointer-events: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: -1;
+    pointer-events: none; /* Пропускаем клики сквозь фон */
 }
 
-.icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: inline-block; vertical-align: middle; }
-.icon-lg { width: 24px; height: 24px; stroke-width: 2; }
-.icon-xl { width: 32px; height: 32px; stroke-width: 1.5; }
+/* Общие стили экранов */
+.screen {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    transition: opacity 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
 
-::-webkit-scrollbar { width: 6px; }
+.screen.hidden {
+    display: none;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Скроллбар */
+::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-
-.screen {
-    position: absolute; width: 100%; height: 100vh;
-    top: 0; left: 0; display: flex; flex-direction: column;
-    transition: opacity 0.3s ease;
-}
-
-.hidden { display: none !important; opacity: 0; pointer-events: none; }
+::-webkit-scrollbar-thumb:hover { background: #555; }
