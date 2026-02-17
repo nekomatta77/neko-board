@@ -247,7 +247,7 @@ header {
     box-shadow: 0 4px 10px rgba(0,0,0,0.2);
 }
 
-/* GAMES GRID */
+/* --- GAMES GRID (ИСПРАВЛЕНО ДЛЯ МОБИЛОК) --- */
 .games-grid { 
     display: grid; 
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
@@ -263,13 +263,15 @@ header {
     border: 1px solid transparent; 
     position: relative; 
     overflow: hidden; 
-    /* Добавляем плавность для всех трансформаций */
-    transition: transform 0.1s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-    /* Убираем выделение при тапе на мобильных (синий квадрат) */
+    /* Плавность для анимаций */
+    transition: transform 0.1s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    /* Убираем стандартное синее выделение на Android при нажатии */
     -webkit-tap-highlight-color: transparent;
+    /* Оптимизация обработки нажатий */
+    touch-action: manipulation;
 }
 
-/* ИСПРАВЛЕНИЕ: Эффект "подпрыгивания" работает ТОЛЬКО если есть мышка */
+/* ВАЖНО: Эффект "подпрыгивания" работает ТОЛЬКО на устройствах с мышкой */
 @media (hover: hover) {
     .game-card:hover { 
         transform: translateY(-5px); 
@@ -278,11 +280,11 @@ header {
     }
 }
 
-/* ИСПРАВЛЕНИЕ: Для телефонов добавляем эффект нажатия (вдавливание) */
+/* ВАЖНО: Эффект нажатия (работает и на телефоне, и на ПК) */
 .game-card:active {
-    transform: scale(0.95);
+    transform: scale(0.96); /* Легкое уменьшение при нажатии */
     border-color: rgba(108, 92, 231, 0.5);
-    box-shadow: 0 0 10px rgba(108, 92, 231, 0.2);
+    box-shadow: 0 0 15px rgba(108, 92, 231, 0.2);
 }
 
 .game-icon { 
@@ -296,7 +298,8 @@ header {
     align-items: center; 
     justify-content: center; 
     color: rgba(0,0,0,0.5); 
-    pointer-events: none; /* Чтобы иконка не перехватывала клик у карточки */
+    /* Чтобы клик проходил сквозь иконку прямо на карточку */
+    pointer-events: none; 
 }
 
 .game-card h3 { 
@@ -307,7 +310,8 @@ header {
     white-space: nowrap; 
     overflow: hidden; 
     text-overflow: ellipsis; 
-    pointer-events: none; /* Текст тоже не должен мешать клику */
+    /* Чтобы клик проходил сквозь текст */
+    pointer-events: none; 
 }
 
 /* --- SERVER LIST --- */
