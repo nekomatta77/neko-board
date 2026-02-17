@@ -19,12 +19,14 @@ if (!firebase.apps.length) {
 var db = firebase.database();
 var chatRef = db.ref('global_chat');
 var statusRef = db.ref('status');
-var leaderboardsRef = db.ref('leaderboards'); // Нужно для main.js, но запись очков теперь будет и внутри игры
+var leaderboardsRef = db.ref('leaderboards');
 var roomsRef = db.ref('rooms');
 
 var currentUser = null;
 var selectedAvatar = 'ava1.png';
 var selectedGameType = '';
+
+console.log("NEKO Board: Main JS v2.0 Loaded"); // Проверка загрузки нового файла
 
 // --- AUDIO ---
 var audio = {
@@ -106,8 +108,14 @@ function createRoom() {
     audio.click();
     const name = document.getElementById('room-name-input').value.trim() || "Комната";
     const max = parseInt(document.getElementById('players-range').value);
+    
+    // Создаем новую ссылку
     const ref = roomsRef.push();
     
+    // ВАЖНО: Явно отменяем любые onDisconnect для этой ссылки на этапе создания,
+    // чтобы предотвратить удаление при переходе на другую страницу.
+    ref.onDisconnect().cancel(); 
+
     const boardSize = max > 2 ? 15 : 3;
     const initialGame = {
         board: Array(boardSize * boardSize).fill(null),
@@ -115,9 +123,6 @@ function createRoom() {
         winner: null,
         rouletteFinished: false 
     };
-
-    // При выходе хоста комната удаляется (если это SPA), но лучше дублировать логику внутри игры
-    ref.onDisconnect().remove();
 
     const roomData = {
         id: ref.key,
@@ -181,7 +186,6 @@ function joinGame(roomId, gameType, maxPlayers, hostName) {
     let fileName = 'index.html';
     if (gameType === 'tictactoe') fileName = 'tictac.html';
     
-    // Формируем полный путь
     const url = `games/${gameType}/${fileName}?room=${roomId}&max=${maxPlayers}&user=${encodeURIComponent(currentUser.name)}&avatar=${encodeURIComponent(currentUser.avatar)}`;
     
     openGame(url);
@@ -193,7 +197,6 @@ window.onload = async function() {
 
     initParticles();
     
-    // Инициализация аватарок
     const grid = document.getElementById('avatar-grid');
     if (grid) {
         grid.innerHTML = ''; 
@@ -326,16 +329,11 @@ function showToast(message) {
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
-// --- ИЗМЕНЕННАЯ ФУНКЦИЯ ЗАПУСКА ИГРЫ ---
 function openGame(url) {
     audio.click();
     updateUserStatus('ИГРАЕТ');
-    // Полный переход на страницу игры
     window.location.href = url;
 }
-
-// Функции closeGame и toggleFullscreen в main.js больше не нужны, 
-// так как управление переходит на страницу tictac.html
 
 function initParticles() {
     const canvas = document.getElementById('bg-canvas');
