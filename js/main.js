@@ -1,32 +1,38 @@
 // --- CONFIG ---
-const firebaseConfig = {
-    apiKey: "AIzaSyC5E-bN2LNWElo7I4kcCGqcgMvoy8WX4wY",
-    authDomain: "neko-board.firebaseapp.com",
-    databaseURL: "https://neko-board-default-rtdb.firebaseio.com",
-    projectId: "neko-board",
-    storageBucket: "neko-board.firebasestorage.app",
-    messagingSenderId: "758590553576",
-    appId: "1:758590553576:web:b3d006e91390d1d4f3385d",
-    measurementId: "G-G9X92RCNM4"
-};
+// Используем var для защиты от повторного объявления
+if (typeof firebaseConfig === 'undefined') {
+    var firebaseConfig = {
+        apiKey: "AIzaSyC5E-bN2LNWElo7I4kcCGqcgMvoy8WX4wY",
+        authDomain: "neko-board.firebaseapp.com",
+        databaseURL: "https://neko-board-default-rtdb.firebaseio.com",
+        projectId: "neko-board",
+        storageBucket: "neko-board.firebasestorage.app",
+        messagingSenderId: "758590553576",
+        appId: "1:758590553576:web:b3d006e91390d1d4f3385d",
+        measurementId: "G-G9X92RCNM4"
+    };
+}
 
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
-const db = firebase.database();
-const chatRef = db.ref('global_chat');
-const statusRef = db.ref('status');
-const leaderboardsRef = db.ref('leaderboards');
-const roomsRef = db.ref('rooms');
 
-let currentUser = null;
-let currentGameId = null;
-let currentRoomHost = null; 
-let selectedAvatar = 'ava1.png';
-let selectedGameType = '';
+// ЗАМЕНА const НА var ИСПРАВЛЯЕТ ОШИБКУ "Identifier has already been declared"
+var db = firebase.database();
+var chatRef = db.ref('global_chat');
+var statusRef = db.ref('status');
+var leaderboardsRef = db.ref('leaderboards');
+var roomsRef = db.ref('rooms');
+
+// Глобальные переменные состояния
+var currentUser = null;
+var currentGameId = null;
+var currentRoomHost = null; 
+var selectedAvatar = 'ava1.png';
+var selectedGameType = '';
 
 // --- AUDIO ---
-const audio = {
+var audio = {
     ctx: null, enabled: false,
     init: function() {
         if(!this.ctx) {
@@ -58,12 +64,14 @@ const audio = {
     },
     updateIcon: function() {
         const btn = document.getElementById('sound-btn');
-        if(this.enabled) {
-            btn.classList.add('active');
-            btn.innerHTML = `<svg class="icon-lg" viewBox="0 0 24 24" stroke="currentColor"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93L15.54 8.46a5 5 0 0 0 0 7.07l3.53 3.53"/></svg>`;
-        } else {
-            btn.classList.remove('active');
-            btn.innerHTML = `<svg class="icon-lg" viewBox="0 0 24 24" stroke="currentColor"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`;
+        if (btn) {
+            if(this.enabled) {
+                btn.classList.add('active');
+                btn.innerHTML = `<svg class="icon-lg" viewBox="0 0 24 24" stroke="currentColor"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93L15.54 8.46a5 5 0 0 0 0 7.07l3.53 3.53"/></svg>`;
+            } else {
+                btn.classList.remove('active');
+                btn.innerHTML = `<svg class="icon-lg" viewBox="0 0 24 24" stroke="currentColor"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`;
+            }
         }
     }
 };
@@ -99,7 +107,6 @@ function closeModal() {
     document.getElementById('create-room-modal').classList.remove('active');
 }
 
-// --- CREATE ROOM ---
 function createRoom() {
     audio.click();
     const name = document.getElementById('room-name-input').value.trim() || "Комната";
@@ -133,7 +140,6 @@ function createRoom() {
     });
 }
 
-// --- LOAD SERVERS ---
 function loadServers() {
     const list = document.getElementById('content-servers');
     list.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Загрузка...</div>';
@@ -173,35 +179,62 @@ function loadServers() {
 function joinGame(roomId, gameType, maxPlayers, hostName) {
     let fileName = 'index.html';
     if (gameType === 'tictactoe') fileName = 'tictac.html';
-    
     const url = `games/${gameType}/${fileName}?room=${roomId}&max=${maxPlayers}&user=${encodeURIComponent(currentUser.name)}&avatar=${encodeURIComponent(currentUser.avatar)}`;
     openGame(url, roomId, hostName);
 }
 
-// --- INIT ---
-window.onload = function() {
+// --- INITIALIZATION ---
+window.onload = async function() {
+    // 1. Показываем лоадер
+    if (typeof NekoLoader !== 'undefined') NekoLoader.show();
+
     initParticles();
     
+    // 2. Генерация аватарок
     const grid = document.getElementById('avatar-grid');
-    for (let i = 1; i <= 20; i++) {
-        let img = document.createElement('img');
-        img.src = `assets/avatars/ava${i}.png`; 
-        img.className = 'avatar-option';
-        img.onerror = function() { this.style.backgroundColor = '#333'; };
-        img.onclick = function() { selectAvatar(this, `ava${i}.png`); audio.click(); };
-        img.onmouseenter = function() { audio.hover(); };
-        if (i === 1) img.classList.add('selected');
-        grid.appendChild(img);
+    if (grid) {
+        grid.innerHTML = ''; 
+        for (let i = 1; i <= 20; i++) {
+            let img = document.createElement('img');
+            img.src = `assets/avatars/ava${i}.png`; 
+            img.className = 'avatar-option';
+            img.onerror = function() { this.style.backgroundColor = '#333'; };
+            img.onclick = function() { selectAvatar(this, `ava${i}.png`); audio.click(); };
+            img.onmouseenter = function() { audio.hover(); };
+            if (i === 1) img.classList.add('selected');
+            grid.appendChild(img);
+        }
     }
 
+    // 3. Ждем картинки
+    if (typeof NekoLoader !== 'undefined') await NekoLoader.waitForImages('avatar-grid');
+
+    // 4. Профиль
     const savedData = localStorage.getItem('nekoProfile');
     if (savedData) {
         currentUser = JSON.parse(savedData);
         enterLobby(currentUser.name, currentUser.avatar);
     }
 
+    // 5. Инициализация UI событий
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        // Удаляем старые слушатели (клонированием)
+        const newChatInput = chatInput.cloneNode(true);
+        chatInput.parentNode.replaceChild(newChatInput, chatInput);
+        
+        newChatInput.addEventListener("keypress", (e) => { 
+            if (e.key === "Enter") sendMessage(); 
+        });
+    }
+
     initChatListener();
     setupSDKListener();
+
+    // 6. Прячем лоадер
+    setTimeout(() => {
+        if (typeof NekoLoader !== 'undefined') NekoLoader.hide();
+    }, 500);
 };
 
 function selectAvatar(el, file) {
@@ -223,7 +256,7 @@ function saveProfile() {
 function enterLobby(name, avatar) {
     document.getElementById('display-name').innerText = name;
     document.getElementById('display-avatar').src = `assets/avatars/${avatar}`;
-    updateUserStatus('В СЕТИ');
+    updateUserStatus('ONLINE');
     
     const login = document.getElementById('login-screen');
     login.style.opacity = '0';
@@ -238,7 +271,7 @@ function enterLobby(name, avatar) {
 
 function updateUserStatus(status) {
     document.getElementById('user-status').innerText = status;
-    document.getElementById('user-status').style.color = status === 'В СЕТИ' ? '#00b894' : '#a29bfe';
+    document.getElementById('user-status').style.color = status === 'ONLINE' ? '#00b894' : '#a29bfe';
     if (currentUser) {
         statusRef.child(currentUser.name).set({ status: status, lastSeen: firebase.database.ServerValue.TIMESTAMP });
     }
@@ -249,7 +282,7 @@ function logout() {
     if(confirm("Выйти?")) { localStorage.removeItem('nekoProfile'); location.reload(); }
 }
 
-// --- CHAT & UTILS ---
+// --- CHAT ---
 function toggleChat() {
     audio.click();
     const win = document.getElementById('chat-window');
@@ -265,9 +298,10 @@ function sendMessage() {
     chatRef.push({ name: currentUser.name, text: text, timestamp: firebase.database.ServerValue.TIMESTAMP });
     input.value = ""; 
 }
-document.getElementById('chat-input').addEventListener("keypress", (e) => { if (e.key === "Enter") sendMessage(); });
 
 function initChatListener() {
+    // Отписываемся от старых слушателей (если были)
+    chatRef.off(); 
     chatRef.limitToLast(50).on('child_added', (snap) => {
         const msg = snap.val();
         if(!msg) return;
@@ -282,6 +316,8 @@ function initChatListener() {
 }
 
 function setupSDKListener() {
+    // Удаляем старый обработчик, чтобы не было дублей (хак через замену window.onmessage, если нужно, но addEventListener безопаснее просто оставить)
+    // Здесь мы просто добавляем новый, но дубликаты событий фильтруются логикой игры
     window.addEventListener('message', function(event) {
         const data = event.data;
         if (data.type === 'NEKO_EVENT' && currentUser && currentGameId) {
@@ -292,7 +328,7 @@ function setupSDKListener() {
                     avatar: currentUser.avatar,
                     timestamp: firebase.database.ServerValue.TIMESTAMP
                 }).then(() => {
-                    showToast(`Счет сохранен: ${score}`);
+                    showToast(`🏆 Счет сохранен: ${score}`);
                     audio.notify();
                 });
             }
@@ -337,9 +373,8 @@ function closeGame() {
     audio.click();
     if (document.fullscreenElement) document.exitFullscreen();
     if (currentGameId && currentRoomHost === currentUser.name) {
-        const ref = roomsRef.child(currentGameId);
-        ref.onDisconnect().cancel(); 
-        ref.remove(); 
+        roomsRef.child(currentGameId).onDisconnect().cancel();
+        roomsRef.child(currentGameId).remove();
         showToast("Сервер закрыт хостом");
     }
     currentGameId = null;
@@ -349,18 +384,19 @@ function closeGame() {
     document.getElementById('lobby').classList.remove('hidden');
     document.getElementById('floating-chat').classList.remove('hidden');
     document.getElementById('sound-container').classList.remove('hidden');
-    updateUserStatus('В СЕТИ');
+    updateUserStatus('ONLINE');
 }
 
 function toggleFullscreen() {
     const elem = document.documentElement;
-    if (!document.fullscreenElement) elem.requestFullscreen().catch(err => alert(`Ошибка: ${err.message}`));
+    if (!document.fullscreenElement) elem.requestFullscreen().catch(err => alert(`Error: ${err.message}`));
     else document.exitFullscreen();
     audio.click();
 }
 
 function initParticles() {
     const canvas = document.getElementById('bg-canvas');
+    if (!canvas) return; 
     const ctx = canvas.getContext('2d');
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;

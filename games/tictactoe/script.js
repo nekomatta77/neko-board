@@ -22,18 +22,22 @@ const maxPlayers = parseInt(urlParams.get('max')) || 2;
 const username = urlParams.get('user') || 'Anon';
 const userAvatar = urlParams.get('avatar') || 'ava1.png';
 
-// --- RULES ---
+// --- SMART RULES: ВАРИАНТ 1 (ЗОЛОТАЯ СЕРЕДИНА) ---
 let BOARD_SIZE = 3;
 let WIN_LENGTH = 3;
 
 if (maxPlayers === 2) {
-    BOARD_SIZE = 3; WIN_LENGTH = 3;
+    BOARD_SIZE = 3; 
+    WIN_LENGTH = 3; 
 } else if (maxPlayers === 3) {
-    BOARD_SIZE = 9; WIN_LENGTH = 4;  
+    BOARD_SIZE = 6;  // Тесно, но интересно
+    WIN_LENGTH = 4;  
 } else if (maxPlayers === 4) {
-    BOARD_SIZE = 11; WIN_LENGTH = 4;  
+    BOARD_SIZE = 10; // Баланс для четверых
+    WIN_LENGTH = 4;  
 } else {
-    BOARD_SIZE = 15; WIN_LENGTH = 5;  
+    BOARD_SIZE = 15; // Масштабная битва для толпы
+    WIN_LENGTH = 5;  
 }
 
 const SYMBOLS = ['✕', '◯', '△', '□', '☆', '◇'];
@@ -64,11 +68,13 @@ function initBoard() {
     const boardEl = document.getElementById('board');
     boardEl.style.gridTemplateColumns = `repeat(${BOARD_SIZE}, 1fr)`;
     
+    // Адаптивный размер клеток под новые правила
     let cellSize = '90px';
     let fontSize = '40px';
     
-    if (BOARD_SIZE > 3) { cellSize = '38px'; fontSize = '24px'; }
-    if (BOARD_SIZE > 10) { cellSize = '24px'; fontSize = '14px'; }
+    if (BOARD_SIZE === 6) { cellSize = '55px'; fontSize = '28px'; }
+    else if (BOARD_SIZE === 10) { cellSize = '35px'; fontSize = '20px'; }
+    else if (BOARD_SIZE >= 15) { cellSize = '24px'; fontSize = '14px'; }
 
     boardEl.innerHTML = '';
     for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
@@ -112,7 +118,7 @@ function startListeners(myKey) {
         
         if (myIndex === 0) {
             roomRef.update({ currentPlayers: activePlayersList.length });
-            // Проверка при изменении состава игроков
+            // Если состав изменился и рулетка не завершена - перезапускаем логику проверки
             if (!gameState.rouletteFinished) checkAndStartRoulette();
         }
     });
@@ -123,6 +129,7 @@ function startListeners(myKey) {
         if (data) {
             gameState = data;
             
+            // Санитария
             if (gameState.winner === undefined) gameState.winner = null;
             const cleanBoard = Array(BOARD_SIZE * BOARD_SIZE).fill(null);
             if (gameState.board) {
@@ -131,19 +138,16 @@ function startListeners(myKey) {
             gameState.board = cleanBoard;
 
             if (gameState.rouletteFinished) {
-                // ИГРА ИДЕТ
+                // ИГРА
                 document.getElementById('roulette-container').classList.remove('active');
                 document.getElementById('win-overlay').classList.remove('active');
                 updateBoardUI();
                 updateGameStatus();
             } else {
-                // РЕЖИМ РУЛЕТКИ (СБРОС)
+                // РУЛЕТКА (СБРОС)
                 document.getElementById('win-overlay').classList.remove('active');
-                
-                // ВАЖНО: Сбрасываем UI рулетки визуально перед запуском
                 resetRouletteUI();
                 
-                // Если я хост, пытаемся запустить логику рулетки
                 if (myIndex === 0) checkAndStartRoulette();
             }
         } else {
@@ -151,10 +155,9 @@ function startListeners(myKey) {
         }
     });
 
-    // 3. РУЛЕТКА (АНИМАЦИЯ)
+    // 3. АНИМАЦИЯ РУЛЕТКИ
     rouletteRef.on('value', snap => {
         const data = snap.val();
-        // Запускаем ТОЛЬКО если статус spinning
         if (data && data.state === 'spinning') {
             startRouletteAnimation(data.winnerIndex, data.offset);
         }
@@ -167,10 +170,8 @@ function startListeners(myKey) {
 }
 
 function checkAndStartRoulette() {
-    // Условия: достаточно игроков И рулетка еще не завершена
     if (activePlayersList.length >= maxPlayers && !gameState.rouletteFinished) {
         rouletteRef.once('value', rSnap => {
-            // Если в базе нет записи о вращении - создаем её
             if (!rSnap.exists()) {
                 initRouletteProcess();
             }
@@ -180,7 +181,6 @@ function checkAndStartRoulette() {
 
 // --- ROULETTE LOGIC ---
 function resetRouletteUI() {
-    // Эта функция вызывается когда rouletteFinished = false
     const rContainer = document.getElementById('roulette-container');
     const rStrip = document.getElementById('roulette-strip');
     const rStatus = document.getElementById('roulette-status');
@@ -188,7 +188,6 @@ function resetRouletteUI() {
     rContainer.classList.add('active');
     rStatus.innerText = "Подготовка...";
     
-    // Мгновенный сброс позиции без анимации
     rStrip.style.transition = 'none';
     rStrip.style.transform = 'translateX(0px)';
 }
@@ -197,7 +196,6 @@ function initRouletteProcess() {
     const winnerIdx = Math.floor(Math.random() * activePlayersList.length);
     const randomOffset = Math.floor(Math.random() * 20) - 10; 
     
-    // Записываем в БД команду "КРУТИТЬ"
     rouletteRef.set({
         state: 'spinning',
         winnerIndex: winnerIdx,
@@ -214,7 +212,6 @@ function startRouletteAnimation(winnerIdx, randomOffset) {
     document.getElementById('roulette-container').classList.add('active');
     rStatus.innerText = "Выбираем игрока...";
 
-    // Генерация ленты
     rStrip.innerHTML = '';
     const itemWidth = 100; 
     const loops = 50; 
@@ -231,22 +228,18 @@ function startRouletteAnimation(winnerIdx, randomOffset) {
     const playerCount = activePlayersList.length;
     const targetRound = 40 * playerCount; 
     const finalIndex = targetRound + winnerIdx; 
-    const centerOffset = 100; // (300/2) - (100/2) = 150 - 50 = 100
+    const centerOffset = 100; 
     const pixelPos = (finalIndex * itemWidth) - centerOffset + randomOffset;
 
-    // --- МАГИЯ RESET ---
-    // 1. Сначала жестко ставим в 0 без анимации
     rStrip.style.transition = 'none';
     rStrip.style.transform = 'translateX(0px)';
     
-    // 2. Ждем 2 кадра отрисовки (гарантия сброса)
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            // 3. Включаем анимацию и крутим
-            rStrip.style.transition = "transform 4s cubic-bezier(0.15, 0, 0.15, 1)";
-            rStrip.style.transform = `translateX(-${pixelPos}px)`;
-        });
-    });
+    void rStrip.offsetWidth; 
+
+    setTimeout(() => {
+        rStrip.style.transition = "transform 4s cubic-bezier(0.15, 0, 0.15, 1)";
+        rStrip.style.transform = `translateX(-${pixelPos}px)`;
+    }, 50);
 
     rouletteTimer = setTimeout(() => {
         showRouletteResult(winnerIdx);
@@ -269,7 +262,6 @@ function showRouletteResult(winnerIdx) {
     setTimeout(() => {
         modal.classList.remove('active');
         if (myIndex === 0) {
-            // Завершаем рулетку и передаем ход
             gameRef.update({
                 rouletteFinished: true,
                 turn: winnerIdx 
@@ -422,17 +414,13 @@ function checkWin(board, idx, player) {
 }
 
 function resetGameInDB() {
-    // Удаляем данные рулетки, чтобы она могла перезаписаться
-    rouletteRef.remove();
-    
-    // Сбрасываем игру
     gameRef.set({
         board: Array(BOARD_SIZE * BOARD_SIZE).fill(null),
         turn: 0,
         winner: null,
         rouletteFinished: false 
     });
-    
+    rouletteRef.remove();
     window.scoreSent = false;
 }
 
