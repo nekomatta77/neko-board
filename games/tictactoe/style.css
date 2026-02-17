@@ -108,7 +108,7 @@ body {
     border-right: 1px solid rgba(255,255,255,0.1);
     box-sizing: border-box; /* Это критически важно для точности */
 }
-
+    
 .roulette-item img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; }
 
 /* MODAL WINNER ROULETTE */

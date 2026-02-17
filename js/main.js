@@ -1,5 +1,4 @@
 // --- CONFIG ---
-// Используем var для защиты от повторного объявления
 if (typeof firebaseConfig === 'undefined') {
     var firebaseConfig = {
         apiKey: "AIzaSyC5E-bN2LNWElo7I4kcCGqcgMvoy8WX4wY",
@@ -17,14 +16,12 @@ if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 
-// ЗАМЕНА const НА var ИСПРАВЛЯЕТ ОШИБКУ "Identifier has already been declared"
 var db = firebase.database();
 var chatRef = db.ref('global_chat');
 var statusRef = db.ref('status');
 var leaderboardsRef = db.ref('leaderboards');
 var roomsRef = db.ref('rooms');
 
-// Глобальные переменные состояния
 var currentUser = null;
 var currentGameId = null;
 var currentRoomHost = null; 
@@ -55,7 +52,11 @@ var audio = {
         osc.start();
         osc.stop(this.ctx.currentTime + duration);
     },
-    hover: function() { this.playNote(1000, 'sine', 0.1, 0.02); },
+    hover: function() { 
+        // ВАЖНО: Не воспроизводим звук наведения на сенсорных устройствах
+        if (window.matchMedia && window.matchMedia('(hover: none)').matches) return;
+        this.playNote(1000, 'sine', 0.1, 0.02); 
+    },
     click: function() { this.playNote(600, 'triangle', 0.15, 0.1); },
     notify: function() { 
         if(!this.enabled) return;
@@ -185,12 +186,10 @@ function joinGame(roomId, gameType, maxPlayers, hostName) {
 
 // --- INITIALIZATION ---
 window.onload = async function() {
-    // 1. Показываем лоадер
     if (typeof NekoLoader !== 'undefined') NekoLoader.show();
 
     initParticles();
     
-    // 2. Генерация аватарок
     const grid = document.getElementById('avatar-grid');
     if (grid) {
         grid.innerHTML = ''; 
@@ -206,20 +205,16 @@ window.onload = async function() {
         }
     }
 
-    // 3. Ждем картинки
     if (typeof NekoLoader !== 'undefined') await NekoLoader.waitForImages('avatar-grid');
 
-    // 4. Профиль
     const savedData = localStorage.getItem('nekoProfile');
     if (savedData) {
         currentUser = JSON.parse(savedData);
         enterLobby(currentUser.name, currentUser.avatar);
     }
 
-    // 5. Инициализация UI событий
     const chatInput = document.getElementById('chat-input');
     if (chatInput) {
-        // Удаляем старые слушатели (клонированием)
         const newChatInput = chatInput.cloneNode(true);
         chatInput.parentNode.replaceChild(newChatInput, chatInput);
         
@@ -231,7 +226,6 @@ window.onload = async function() {
     initChatListener();
     setupSDKListener();
 
-    // 6. Прячем лоадер
     setTimeout(() => {
         if (typeof NekoLoader !== 'undefined') NekoLoader.hide();
     }, 500);
@@ -282,7 +276,6 @@ function logout() {
     if(confirm("Выйти?")) { localStorage.removeItem('nekoProfile'); location.reload(); }
 }
 
-// --- CHAT ---
 function toggleChat() {
     audio.click();
     const win = document.getElementById('chat-window');
@@ -300,7 +293,6 @@ function sendMessage() {
 }
 
 function initChatListener() {
-    // Отписываемся от старых слушателей (если были)
     chatRef.off(); 
     chatRef.limitToLast(50).on('child_added', (snap) => {
         const msg = snap.val();
@@ -316,8 +308,6 @@ function initChatListener() {
 }
 
 function setupSDKListener() {
-    // Удаляем старый обработчик, чтобы не было дублей (хак через замену window.onmessage, если нужно, но addEventListener безопаснее просто оставить)
-    // Здесь мы просто добавляем новый, но дубликаты событий фильтруются логикой игры
     window.addEventListener('message', function(event) {
         const data = event.data;
         if (data.type === 'NEKO_EVENT' && currentUser && currentGameId) {
