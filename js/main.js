@@ -19,12 +19,10 @@ if (!firebase.apps.length) {
 var db = firebase.database();
 var chatRef = db.ref('global_chat');
 var statusRef = db.ref('status');
-var leaderboardsRef = db.ref('leaderboards');
+var leaderboardsRef = db.ref('leaderboards'); // Нужно для main.js, но запись очков теперь будет и внутри игры
 var roomsRef = db.ref('rooms');
 
 var currentUser = null;
-var currentGameId = null;
-var currentRoomHost = null; 
 var selectedAvatar = 'ava1.png';
 var selectedGameType = '';
 
@@ -118,6 +116,7 @@ function createRoom() {
         rouletteFinished: false 
     };
 
+    // При выходе хоста комната удаляется (если это SPA), но лучше дублировать логику внутри игры
     ref.onDisconnect().remove();
 
     const roomData = {
@@ -155,9 +154,8 @@ function loadServers() {
             const card = document.createElement('div');
             card.className = 'server-card';
             card.onclick = () => { audio.click(); joinGame(room.id, room.gameType, room.maxPlayers, room.host); };
-            card.classList.add('hover-sound'); // Добавляем класс для звука
+            card.classList.add('hover-sound');
             
-            // FIX: Если мышь, добавляем слушатель сразу (для динамических элементов)
             if (window.matchMedia('(hover: hover)').matches) {
                 card.addEventListener('mouseenter', () => audio.hover());
             }
@@ -182,8 +180,11 @@ function loadServers() {
 function joinGame(roomId, gameType, maxPlayers, hostName) {
     let fileName = 'index.html';
     if (gameType === 'tictactoe') fileName = 'tictac.html';
+    
+    // Формируем полный путь
     const url = `games/${gameType}/${fileName}?room=${roomId}&max=${maxPlayers}&user=${encodeURIComponent(currentUser.name)}&avatar=${encodeURIComponent(currentUser.avatar)}`;
-    openGame(url, roomId, hostName);
+    
+    openGame(url);
 }
 
 // --- INITIALIZATION ---
@@ -192,16 +193,16 @@ window.onload = async function() {
 
     initParticles();
     
+    // Инициализация аватарок
     const grid = document.getElementById('avatar-grid');
     if (grid) {
         grid.innerHTML = ''; 
         for (let i = 1; i <= 20; i++) {
             let img = document.createElement('img');
             img.src = `assets/avatars/ava${i}.png`; 
-            img.className = 'avatar-option hover-sound'; // Добавляем класс звука
+            img.className = 'avatar-option hover-sound';
             img.onerror = function() { this.style.backgroundColor = '#333'; };
             img.onclick = function() { selectAvatar(this, `ava${i}.png`); audio.click(); };
-            // onmouseenter убран из HTML генерации
             if (i === 1) img.classList.add('selected');
             grid.appendChild(img);
         }
@@ -226,17 +227,13 @@ window.onload = async function() {
     }
 
     initChatListener();
-    setupSDKListener();
 
-    // --- FIX: МОБИЛЬНЫЙ ЗВУК И HOVER ---
-    // Подключаем звуки наведения ТОЛЬКО если это не тач-устройство (есть мышь)
     if (window.matchMedia('(hover: hover)').matches) {
-        // Ищем все элементы с классом hover-sound и добавляем слушатель
         document.body.addEventListener('mouseenter', (e) => {
             if (e.target.classList && e.target.classList.contains('hover-sound')) {
                 audio.hover();
             }
-        }, true); // true для захвата события (bubbling)
+        }, true);
     }
 
     setTimeout(() => {
@@ -320,29 +317,6 @@ function initChatListener() {
     });
 }
 
-function setupSDKListener() {
-    window.addEventListener('message', function(event) {
-        const data = event.data;
-        if (data.type === 'NEKO_EVENT' && currentUser && currentGameId) {
-            if (data.action === 'SAVE_SCORE') {
-                const score = parseInt(data.payload.score);
-                leaderboardsRef.child(currentGameId).child(currentUser.name).set({
-                    score: score,
-                    avatar: currentUser.avatar,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
-                }).then(() => {
-                    showToast(`🏆 Счет сохранен: ${score}`);
-                    audio.notify();
-                });
-            }
-            if (data.action === 'EXIT') {
-                closeGame();
-                showToast("Комната закрыта");
-            }
-        }
-    });
-}
-
 function showToast(message) {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -352,50 +326,16 @@ function showToast(message) {
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
-function openGame(url, gameId, hostName) {
+// --- ИЗМЕНЕННАЯ ФУНКЦИЯ ЗАПУСКА ИГРЫ ---
+function openGame(url) {
     audio.click();
-    currentGameId = gameId;
-    currentRoomHost = hostName;
-    const lobby = document.getElementById('lobby');
-    const gc = document.getElementById('game-container');
-    
-    lobby.style.opacity = '0';
-    document.getElementById('floating-chat').classList.add('hidden');
-    document.getElementById('sound-container').classList.add('hidden');
-    updateUserStatus(`ИГРАЕТ`);
-
-    setTimeout(() => {
-        lobby.classList.add('hidden');
-        gc.classList.remove('hidden');
-        document.getElementById('game-frame').src = url;
-        lobby.style.opacity = '1';
-    }, 300);
+    updateUserStatus('ИГРАЕТ');
+    // Полный переход на страницу игры
+    window.location.href = url;
 }
 
-function closeGame() {
-    audio.click();
-    if (document.fullscreenElement) document.exitFullscreen();
-    if (currentGameId && currentRoomHost === currentUser.name) {
-        roomsRef.child(currentGameId).onDisconnect().cancel();
-        roomsRef.child(currentGameId).remove();
-        showToast("Сервер закрыт хостом");
-    }
-    currentGameId = null;
-    currentRoomHost = null;
-    document.getElementById('game-frame').src = '';
-    document.getElementById('game-container').classList.add('hidden');
-    document.getElementById('lobby').classList.remove('hidden');
-    document.getElementById('floating-chat').classList.remove('hidden');
-    document.getElementById('sound-container').classList.remove('hidden');
-    updateUserStatus('ONLINE');
-}
-
-function toggleFullscreen() {
-    const elem = document.documentElement;
-    if (!document.fullscreenElement) elem.requestFullscreen().catch(err => alert(`Error: ${err.message}`));
-    else document.exitFullscreen();
-    audio.click();
-}
+// Функции closeGame и toggleFullscreen в main.js больше не нужны, 
+// так как управление переходит на страницу tictac.html
 
 function initParticles() {
     const canvas = document.getElementById('bg-canvas');

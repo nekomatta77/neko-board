@@ -10,6 +10,8 @@
 </head>
 <body>
 
+    <button class="exit-btn" onclick="exitGame()">✕</button>
+
     <div class="game-wrapper">
         <div class="players-list" id="players-list-ui">
             <div style="padding:10px; opacity:0.5; font-size:12px;">Загрузка...</div>
@@ -23,12 +25,12 @@
 
     <div id="roulette-container" class="active">
         <div class="roulette-box">
-            <h2 style="margin:0 0 15px 0; color:#a29bfe;">Выбор первого хода</h2>
+            <h2>Выбор первого хода</h2>
             <div class="roulette-window">
                 <div class="roulette-line"></div>
                 <div class="roulette-strip" id="roulette-strip"></div>
             </div>
-            <div id="roulette-status" style="margin-top:10px; color:#666;">Ожидание игроков...</div>
+            <div id="roulette-status">Ожидание игроков...</div>
         </div>
     </div>
 
@@ -45,6 +47,7 @@
         <div id="win-title">ПОБЕДИТЕЛЬ</div>
         <div id="win-name">Имя Игрока</div>
         <button class="btn-restart" onclick="restartGame()">ИГРАТЬ СНОВА</button>
+        <button class="btn-restart" onclick="exitGame()" style="margin-top: 10px; background: #333;">В МЕНЮ</button>
     </div>
 
     <script src="script.js"></script>
