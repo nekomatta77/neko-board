@@ -1,0 +1,40 @@
+.login-wrapper {
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; backdrop-filter: blur(5px);
+}
+
+.login-card {
+    background: rgba(30, 30, 36, 0.8);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    padding: 40px; border-radius: 24px; text-align: center;
+    width: 90%; max-width: 380px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.login-card h2 {
+    margin: 0 0 10px 0; font-weight: 800; font-size: 28px;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+
+.login-card p { color: var(--text-secondary); font-size: 14px; margin-bottom: 25px; }
+
+.avatar-grid {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;
+    max-height: 180px; overflow-y: auto; margin-bottom: 25px; padding: 5px;
+}
+
+.avatar-option {
+    width: 55px; height: 55px; border-radius: 50%;
+    cursor: pointer; border: 2px solid transparent;
+    transition: all 0.2s; background: #2d2d2d;
+}
+.avatar-option:hover { transform: scale(1.1); }
+.avatar-option.selected {
+    border-color: #6c5ce7; box-shadow: 0 0 15px rgba(108, 92, 231, 0.4);
+    transform: scale(1.15);
+}

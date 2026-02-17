@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEKO TicTacToe</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+
+    <div class="game-wrapper">
+        <div class="players-list" id="players-list-ui">
+            <div style="padding:10px; opacity:0.5; font-size:12px;">Загрузка...</div>
+        </div>
+
+        <div class="center-area">
+            <div id="status-text" class="status-badge">Подключение...</div>
+            <div id="board"></div>
+        </div>
+    </div>
+
+    <div id="roulette-container" class="active">
+        <div class="roulette-box">
+            <h2 style="margin:0 0 15px 0; color:#a29bfe;">Выбор первого хода</h2>
+            <div class="roulette-window">
+                <div class="roulette-line"></div>
+                <div class="roulette-strip" id="roulette-strip"></div>
+            </div>
+            <div id="roulette-status" style="margin-top:10px; color:#666;">Ожидание игроков...</div>
+        </div>
+    </div>
+
+    <div id="roulette-winner-modal">
+        <div class="winner-card">
+            <div style="font-size:14px; color:#aaa; margin-bottom:10px;">ПЕРВЫЙ ХОД</div>
+            <img id="r-winner-img" src="" class="winner-avatar">
+            <h2 id="r-winner-name" style="margin:10px 0; color:#2ed573;">Игрок</h2>
+            <div style="font-size:12px; opacity:0.5;">Игра начинается...</div>
+        </div>
+    </div>
+
+    <div id="win-overlay">
+        <div id="win-title">ПОБЕДИТЕЛЬ</div>
+        <div id="win-name">Имя Игрока</div>
+        <button class="btn-restart" onclick="restartGame()">ИГРАТЬ СНОВА</button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
