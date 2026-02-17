@@ -1,4 +1,11 @@
-#lobby { padding: 20px; overflow-y: auto; box-sizing: border-box; }
+/* --- css/lobby.css --- */
+
+#lobby { 
+    padding: 20px; 
+    overflow-y: auto; 
+    box-sizing: border-box; 
+    -webkit-overflow-scrolling: touch; /* Плавная прокрутка на iOS */
+}
 
 header {
     display: flex; justify-content: space-between; align-items: center;
@@ -14,6 +21,7 @@ header {
     background: var(--glass-bg); padding: 6px 12px;
     border-radius: 30px; border: 1px solid var(--glass-border);
     cursor: pointer; transition: background 0.2s;
+    -webkit-tap-highlight-color: transparent; /* Убирает синий квадрат при нажатии */
 }
 .user-profile:hover { background: rgba(255,255,255,0.1); }
 .profile-info { display: flex; flex-direction: column; align-items: flex-end; margin-right: 12px; }
@@ -30,31 +38,87 @@ header {
 .tab-btn {
     padding: 10px 25px; border: none; background: transparent;
     color: var(--text-secondary); cursor: pointer; border-radius: 8px;
-    font-weight: 600; transition: all 0.3s; display: flex; align-items: center; gap: 8px;
+    font-weight: 600; transition: all 0.2s;
+    display: flex; align-items: center; gap: 8px;
+    
+    /* FIX: Оптимизация для тачскринов */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
 }
 .tab-btn.active { background: var(--card-bg); color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
 
-.games-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px; padding-bottom: 100px; }
+/* Эффект нажатия для табов */
+.tab-btn:active { transform: scale(0.95); opacity: 0.8; }
+
+.games-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
+    gap: 20px; 
+    padding-bottom: 100px; 
+}
+
 .game-card {
     background: var(--card-bg); border-radius: 20px; padding: 15px;
-    cursor: pointer; transition: transform 0.3s, box-shadow 0.3s;
+    cursor: pointer; 
     border: 1px solid transparent; position: relative; overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    
+    /* FIX: Критические исправления для мобильных */
+    touch-action: manipulation; /* Убирает задержку 300мс */
+    -webkit-tap-highlight-color: transparent; /* Убирает синее выделение на Android */
+    -webkit-user-select: none;
+    user-select: none;
 }
-.game-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.3); border-color: rgba(108, 92, 231, 0.3); }
+
+/* FIX: Hover срабатывает только если есть мышка. На телефоне hover не будет мешать клику */
+@media (hover: hover) {
+    .game-card:hover { 
+        transform: translateY(-5px); 
+        box-shadow: 0 10px 20px rgba(0,0,0,0.3); 
+        border-color: rgba(108, 92, 231, 0.3); 
+    }
+}
+
+/* FIX: Явный эффект нажатия для телефона */
+.game-card:active {
+    transform: scale(0.96);
+    border-color: rgba(108, 92, 231, 0.5);
+    background: rgba(30, 30, 36, 1);
+}
+
 .game-icon {
     width: 100%; aspect-ratio: 1/1; border-radius: 14px; margin-bottom: 12px;
     background-size: cover; background-position: center;
     display: flex; align-items: center; justify-content: center; color: rgba(0,0,0,0.5);
+    pointer-events: none; /* Пропускаем клики сквозь иконку, чтобы они попадали на карточку */
 }
-.game-card h3 { margin: 0; font-size: 15px; font-weight: 600; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.game-card h3 { 
+    margin: 0; font-size: 15px; font-weight: 600; text-align: center; 
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+    pointer-events: none; /* Пропускаем клики сквозь текст */
+}
 
 .server-list { display: flex; flex-direction: column; gap: 10px; padding-bottom: 80px; }
 .server-card {
     background: var(--card-bg); border: 1px solid var(--glass-border); padding: 15px;
     border-radius: 12px; display: flex; justify-content: space-between; align-items: center;
     cursor: pointer; transition: transform 0.2s, border-color 0.2s;
+    
+    /* FIX: Оптимизация сервера */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
-.server-card:hover { transform: translateX(5px); border-color: #6c5ce7; }
+
+@media (hover: hover) {
+    .server-card:hover { transform: translateX(5px); border-color: #6c5ce7; }
+}
+
+.server-card:active {
+    transform: scale(0.98);
+    background: rgba(255,255,255,0.05);
+}
+
 .server-info h4 { margin: 0 0 5px 0; font-size: 16px; }
 .server-meta { display: flex; gap: 15px; font-size: 12px; color: var(--text-secondary); }
 .server-meta span { display: flex; align-items: center; gap: 4px; }
