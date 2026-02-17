@@ -16,9 +16,7 @@
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/loader.css"> <script src="js/loader.js"></script> 
-    <script src="js/main.js"></script>
+    <script src="js/loader.js"></script> 
 </head>
 <body>
 
@@ -39,8 +37,8 @@
             </div>
 
             <div style="display: flex; gap: 10px;">
-                <button class="main-btn" onclick="closeModal()" style="background: #444;">Отмена</button>
-                <button class="main-btn" onclick="createRoom()">Создать</button>
+                <button class="main-btn hover-sound" onclick="closeModal()" style="background: #444;">Отмена</button>
+                <button class="main-btn hover-sound" onclick="createRoom()">Создать</button>
             </div>
         </div>
     </div>
@@ -54,7 +52,7 @@
                 <div id="avatar-grid" class="avatar-grid"></div>
                 <input type="text" id="nickname-input" placeholder="Введите никнейм" maxlength="12">
                 
-                <button onclick="saveProfile()" class="main-btn" onmouseenter="audio.hover()">
+                <button onclick="saveProfile()" class="main-btn hover-sound">
                     <span>Войти</span>
                     <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                 </button>
@@ -70,7 +68,7 @@
             </div>
             
             <div class="header-right">
-                <div class="user-profile" onclick="logout()" onmouseenter="audio.hover()">
+                <div class="user-profile hover-sound" onclick="logout()">
                     <div class="profile-info">
                         <span id="display-name">Guest</span>
                         <span id="user-status">ONLINE</span>
@@ -81,32 +79,32 @@
         </header>
 
         <div class="tabs-container">
-            <button class="tab-btn active" onclick="switchTab('games')" id="tab-games" onmouseenter="audio.hover()">
+            <button class="tab-btn active hover-sound" onclick="switchTab('games')" id="tab-games">
                 <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4M15 11h.01M18 13h.01"/></svg>
                 Игры
             </button>
-            <button class="tab-btn" onclick="switchTab('servers')" id="tab-servers" onmouseenter="audio.hover()">
+            <button class="tab-btn hover-sound" onclick="switchTab('servers')" id="tab-servers">
                 <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
                 Сервера
             </button>
         </div>
 
         <div id="content-games" class="games-grid">
-            <div class="game-card" onclick="openCreateModal('tictactoe')" onmouseenter="audio.hover()">
+            <div class="game-card hover-sound" onclick="openCreateModal('tictactoe')">
                 <div class="game-icon" style="background: linear-gradient(45deg, #a18cd1, #fbc2eb);">
                      <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><path d="M3 3l18 18M21 3L3 21"/></svg>
                 </div>
                 <h3>Tic-Tac-Toe Online</h3>
             </div>
             
-            <div class="game-card" onclick="showToast('Coming Soon!')" onmouseenter="audio.hover()">
+            <div class="game-card hover-sound" onclick="showToast('Coming Soon!')">
                 <div class="game-icon" style="background: linear-gradient(45deg, #ff9a9e, #fad0c4);">
                     <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4M15 11h.01M18 13h.01"/></svg>
                 </div>
                 <h3>Brawl Shooter</h3>
             </div>
 
-            <div class="game-card" onclick="showToast('Coming Soon!')" onmouseenter="audio.hover()">
+            <div class="game-card hover-sound" onclick="showToast('Coming Soon!')">
                 <div class="game-icon" style="background: linear-gradient(45deg, #84fab0, #8fd3f4);">
                      <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
                 </div>
@@ -130,28 +128,28 @@
             </div>
             <div class="chat-input-area">
                 <input type="text" id="chat-input" placeholder="Message..." maxlength="50">
-                <button onclick="sendMessage()" class="send-btn" onmouseenter="audio.hover()">
+                <button onclick="sendMessage()" class="send-btn hover-sound">
                     <svg class="icon-lg" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
                 </button>
             </div>
         </div>
-        <button class="chat-toggle-btn" onclick="toggleChat()" onmouseenter="audio.hover()">
+        <button class="chat-toggle-btn hover-sound" onclick="toggleChat()">
             <svg class="icon-lg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </button>
     </div>
 
     <div class="floating-sound-container hidden" id="sound-container">
-        <button class="sound-toggle-btn" id="sound-btn" onclick="toggleMute()" onmouseenter="audio.hover()">
+        <button class="sound-toggle-btn hover-sound" id="sound-btn" onclick="toggleMute()">
             <svg class="icon-lg" viewBox="0 0 24 24" stroke="currentColor"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
         </button>
     </div>
 
     <div id="game-container" class="screen hidden">
         <div class="game-controls">
-            <div class="control-btn" onclick="closeGame()" onmouseenter="audio.hover()">
+            <div class="control-btn hover-sound" onclick="closeGame()">
                 <svg class="icon-lg" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             </div>
-            <div class="control-btn" onclick="toggleFullscreen()" onmouseenter="audio.hover()">
+            <div class="control-btn hover-sound" onclick="toggleFullscreen()">
                 <svg class="icon-lg" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
             </div>
         </div>

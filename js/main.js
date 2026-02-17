@@ -52,11 +52,7 @@ var audio = {
         osc.start();
         osc.stop(this.ctx.currentTime + duration);
     },
-    hover: function() { 
-        // ВАЖНО: Не воспроизводим звук наведения на сенсорных устройствах
-        if (window.matchMedia && window.matchMedia('(hover: none)').matches) return;
-        this.playNote(1000, 'sine', 0.1, 0.02); 
-    },
+    hover: function() { this.playNote(1000, 'sine', 0.1, 0.02); },
     click: function() { this.playNote(600, 'triangle', 0.15, 0.1); },
     notify: function() { 
         if(!this.enabled) return;
@@ -159,7 +155,13 @@ function loadServers() {
             const card = document.createElement('div');
             card.className = 'server-card';
             card.onclick = () => { audio.click(); joinGame(room.id, room.gameType, room.maxPlayers, room.host); };
-            card.onmouseenter = () => audio.hover();
+            card.classList.add('hover-sound'); // Добавляем класс для звука
+            
+            // FIX: Если мышь, добавляем слушатель сразу (для динамических элементов)
+            if (window.matchMedia('(hover: hover)').matches) {
+                card.addEventListener('mouseenter', () => audio.hover());
+            }
+
             const gameName = room.gameType ? room.gameType.toUpperCase() : "GAME";
             
             card.innerHTML = `
@@ -196,10 +198,10 @@ window.onload = async function() {
         for (let i = 1; i <= 20; i++) {
             let img = document.createElement('img');
             img.src = `assets/avatars/ava${i}.png`; 
-            img.className = 'avatar-option';
+            img.className = 'avatar-option hover-sound'; // Добавляем класс звука
             img.onerror = function() { this.style.backgroundColor = '#333'; };
             img.onclick = function() { selectAvatar(this, `ava${i}.png`); audio.click(); };
-            img.onmouseenter = function() { audio.hover(); };
+            // onmouseenter убран из HTML генерации
             if (i === 1) img.classList.add('selected');
             grid.appendChild(img);
         }
@@ -225,6 +227,17 @@ window.onload = async function() {
 
     initChatListener();
     setupSDKListener();
+
+    // --- FIX: МОБИЛЬНЫЙ ЗВУК И HOVER ---
+    // Подключаем звуки наведения ТОЛЬКО если это не тач-устройство (есть мышь)
+    if (window.matchMedia('(hover: hover)').matches) {
+        // Ищем все элементы с классом hover-sound и добавляем слушатель
+        document.body.addEventListener('mouseenter', (e) => {
+            if (e.target.classList && e.target.classList.contains('hover-sound')) {
+                audio.hover();
+            }
+        }, true); // true для захвата события (bubbling)
+    }
 
     setTimeout(() => {
         if (typeof NekoLoader !== 'undefined') NekoLoader.hide();
