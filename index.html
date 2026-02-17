@@ -68,13 +68,13 @@
             </div>
             
             <div class="header-right">
-                <div class="user-profile hover-sound" onclick="logout()">
+                <button class="user-profile hover-sound" onclick="logout()" style="border: 1px solid var(--glass-border); background: var(--glass-bg); color: white;">
                     <div class="profile-info">
                         <span id="display-name">Guest</span>
                         <span id="user-status">ONLINE</span>
                     </div>
                     <img id="display-avatar" src="" alt="Avatar">
-                </div>
+                </button>
             </div>
         </header>
 
@@ -90,26 +90,26 @@
         </div>
 
         <div id="content-games" class="games-grid">
-            <div class="game-card hover-sound" onclick="openCreateModal('tictactoe')">
+            <button class="game-card hover-sound" onclick="openCreateModal('tictactoe')">
                 <div class="game-icon" style="background: linear-gradient(45deg, #a18cd1, #fbc2eb);">
                      <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><path d="M3 3l18 18M21 3L3 21"/></svg>
                 </div>
                 <h3>Tic-Tac-Toe Online</h3>
-            </div>
+            </button>
             
-            <div class="game-card hover-sound" onclick="showToast('Coming Soon!')">
+            <button class="game-card hover-sound" onclick="showToast('Coming Soon!')">
                 <div class="game-icon" style="background: linear-gradient(45deg, #ff9a9e, #fad0c4);">
                     <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4M15 11h.01M18 13h.01"/></svg>
                 </div>
                 <h3>Brawl Shooter</h3>
-            </div>
+            </button>
 
-            <div class="game-card hover-sound" onclick="showToast('Coming Soon!')">
+            <button class="game-card hover-sound" onclick="showToast('Coming Soon!')">
                 <div class="game-icon" style="background: linear-gradient(45deg, #84fab0, #8fd3f4);">
                      <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
                 </div>
                 <h3>Color Glass</h3>
-            </div>
+            </button>
         </div>
 
         <div id="content-servers" class="server-list hidden">
