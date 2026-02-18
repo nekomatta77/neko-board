@@ -5,12 +5,12 @@ export class Toaster {
         this.mixer = null;
         this.animations = {};
         this.currentAction = null;
-        this.activeActionName = 'Idle'; // Для синхронизации
+        this.activeActionName = ''; // Текущая активная анимация
         
         this.moveSpeed = 0.02; 
         this.runAnimSpeed = 1;
         
-        this.isAttacking = false; // Флаг атаки
+        this.isAttacking = false;
 
         this.loader = new THREE.FBXLoader(loadingManager);
         this.texLoader = new THREE.TextureLoader(loadingManager);
@@ -38,9 +38,9 @@ export class Toaster {
             this.mesh.rotation.y = Math.PI; 
             this.mixer = new THREE.AnimationMixer(this.mesh);
             
-            // Слушаем окончание анимации (для удара)
+            // Слушаем конец удара
             this.mixer.addEventListener('finished', (e) => {
-                if (e.action === this.animations['Punch']) {
+                if (this.animations['Punch'] && e.action === this.animations['Punch']) {
                     this.isAttacking = false;
                     this.playAnim('Idle');
                 }
@@ -48,13 +48,12 @@ export class Toaster {
 
             this.scene.add(this.mesh);
 
+            // Загружаем анимации и СРАЗУ включаем Idle
             this.loadAnim('Idle', 'idle.fbx', () => this.playAnim('Idle'));
             this.loadAnim('Run', 'run.fbx');
-            
-            // ЗАГРУЗКА УДАРА
             this.loadAnim('Punch', 'punch.fbx', (action) => {
-                action.loop = THREE.LoopOnce; // Играть 1 раз
-                action.clampWhenFinished = true; // Остановиться в конце
+                action.loop = THREE.LoopOnce;
+                action.clampWhenFinished = true;
             });
 
         }, undefined, (e) => console.error(e));
@@ -65,7 +64,6 @@ export class Toaster {
             if (this.mixer) {
                 const action = this.mixer.clipAction(anim.animations[0]);
                 if (name === 'Run') action.timeScale = this.runAnimSpeed;
-                // Ускорим удар, если он слишком медленный
                 if (name === 'Punch') action.timeScale = 1.5; 
                 
                 this.animations[name] = action;
@@ -76,10 +74,13 @@ export class Toaster {
 
     playAnim(name) {
         if (!this.animations[name]) return;
-        if (this.activeActionName === name && name !== 'Punch') return; // Не перезапускать, если уже играет (кроме удара)
+        
+        // Если анимация уже играет, не перезапускаем (кроме удара, его можно форсировать)
+        if (this.activeActionName === name && name !== 'Punch') return;
 
         const newAction = this.animations[name];
         
+        // Плавный переход
         if (this.currentAction && this.currentAction !== newAction) {
             this.currentAction.fadeOut(0.2);
         }
@@ -90,20 +91,19 @@ export class Toaster {
     }
 
     attack() {
-        if (this.isAttacking) return; // Нельзя бить, пока бьешь
+        if (this.isAttacking) return;
         this.isAttacking = true;
         this.playAnim('Punch');
     }
 
     update(dt, inputs, cameraAngleY) {
         if (!this.mesh || !this.mixer) return;
+        
+        // ВАЖНО: Обновляем миксер всегда, иначе анимация застынет
         this.mixer.update(dt);
 
-        // Если атакуем - двигаться нельзя (или можно, если хочешь)
+        // Если атакуем, не двигаемся
         if (this.isAttacking) return;
-
-        // ЛОГИКА АТАКИ (ЛКМ или Клик по экрану обрабатывается в game.js и вызывает этот метод)
-        // Но здесь мы просто двигаемся
 
         let dx = 0;
         let dz = 0;
@@ -113,7 +113,7 @@ export class Toaster {
         if (inputs.left) dx = -1;
         if (inputs.right) dx = 1;
 
-        if (inputs.joystick.active) {
+        if (inputs.joystick && inputs.joystick.active) {
             dz = -Math.sin(inputs.joystick.angle);
             dx = Math.cos(inputs.joystick.angle);
         }
@@ -122,6 +122,7 @@ export class Toaster {
 
         if (isMoving) {
             this.playAnim('Run');
+            
             const angleOffset = -cameraAngleY;
             const realX = dx * Math.cos(angleOffset) - dz * Math.sin(angleOffset);
             const realZ = dx * Math.sin(angleOffset) + dz * Math.cos(angleOffset);
@@ -135,11 +136,11 @@ export class Toaster {
             while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
             this.mesh.rotation.y += rotDiff * 0.15;
         } else {
+            // ИСПРАВЛЕНИЕ: Если не двигаемся - включаем Idle
             this.playAnim('Idle');
         }
     }
     
-    // Данные для отправки в сеть
     getNetworkData() {
         if (!this.mesh) return null;
         return {
