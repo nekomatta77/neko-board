@@ -1,25 +1,29 @@
-/* Общие настройки для игры */
+/* Базовые настройки */
 body, html {
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
-    overflow: hidden; /* Убираем прокрутку */
-    background-color: #000;
+    overflow: hidden;
+    background-color: #000; /* Черный фон на случай долгой загрузки */
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    user-select: none; /* Запрещаем выделение текста (важно для тач-интерфейса) */
+    user-select: none;
     -webkit-user-select: none;
+    -webkit-touch-callout: none; /* Отключаем меню при долгом тапе на iOS */
 }
 
+/* Контейнер игры должен быть строго под UI */
 #game-container {
-    width: 100%;
-    height: 100%;
     position: absolute;
     top: 0;
     left: 0;
+    width: 100%;
+    height: 100%;
     z-index: 1;
+    display: block; /* Убеждаемся, что он видим */
 }
 
+/* UI поверх игры */
 #ui-layer {
     position: absolute;
     top: 0;
@@ -27,10 +31,9 @@ body, html {
     width: 100%;
     height: 100%;
     z-index: 10;
-    pointer-events: none; /* Пропускаем клики сквозь пустые места UI к игре */
+    pointer-events: none;
 }
 
-/* --- Стили для полосок здоровья и прочего UI --- */
 #health-bars {
     position: absolute;
     top: 20px;
@@ -38,38 +41,83 @@ body, html {
     pointer-events: auto;
 }
 
-/* =========================================
-   МОБИЛЬНЫЕ КОНТРОЛЛЕРЫ
-   По умолчанию скрыты (для ПК)
-   ========================================= */
+/* --- СТАРТОВЫЙ ЭКРАН (Новое) --- */
+#start-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    background-image: radial-gradient(circle, #2a2a2a 0%, #000 100%);
+    z-index: 20000; /* Самый верхний слой */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.5s ease;
+}
+
+.start-content {
+    text-align: center;
+    color: white;
+}
+
+.start-content h1 {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    text-shadow: 0 0 20px #ff0055;
+    font-weight: 900;
+    letter-spacing: 2px;
+}
+
+#btn-start {
+    padding: 20px 40px;
+    font-size: 1.5rem;
+    background: #ff0055;
+    color: white;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow: 0 0 30px rgba(255, 0, 85, 0.5);
+    animation: pulse 1.5s infinite;
+    text-transform: uppercase;
+    font-weight: bold;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 30px rgba(255, 0, 85, 0.5); }
+    50% { transform: scale(1.05); box-shadow: 0 0 50px rgba(255, 0, 85, 0.8); }
+    100% { transform: scale(1); box-shadow: 0 0 30px rgba(255, 0, 85, 0.5); }
+}
+
+/* --- МОБИЛЬНЫЕ КОНТРОЛЛЕРЫ --- */
 #mobile-controls {
-    display: none; /* Скрыто на ПК */
+    display: none;
     position: absolute;
-    bottom: 20px;
+    bottom: 30px; /* Чуть выше от края */
     width: 100%;
     height: 150px;
     pointer-events: none;
-    padding: 0 40px;
+    padding: 0 5%; /* Отступы по бокам в процентах */
     box-sizing: border-box;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-end; /* Кнопки прижаты к низу зоны */
 }
 
 .control-group {
-    pointer-events: auto; /* Включаем клики для кнопок */
+    pointer-events: auto;
     display: flex;
     gap: 20px;
 }
 
-/* Джойстик (Визуальная часть) */
 #joystick-area {
     width: 120px;
     height: 120px;
     background: rgba(255, 255, 255, 0.1);
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.2);
     border-radius: 50%;
     position: relative;
-    backdrop-filter: blur(5px);
+    backdrop-filter: blur(4px);
 }
 
 #joystick-knob {
@@ -84,81 +132,57 @@ body, html {
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
-/* Кнопки действий */
 .control-btn {
-    width: 80px;
-    height: 80px;
+    width: 90px;
+    height: 90px;
     border-radius: 50%;
-    border: none;
-    background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+    border: 4px solid rgba(255,255,255,0.2);
     font-size: 32px;
     color: white;
     display: flex;
     justify-content: center;
     align-items: center;
     box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    active: scale(0.95); /* Эффект нажатия */
-    touch-action: manipulation;
+    outline: none;
+    -webkit-tap-highlight-color: transparent; /* Убираем подсветку при тапе */
 }
 
 #btn-attack {
-    background: linear-gradient(135deg, #ff512f 0%, #dd2476 100%);
+    background: radial-gradient(circle at 30% 30%, #ff6b6b, #ee5253);
 }
 
 #btn-jump {
-    background: linear-gradient(135deg, #1fa2ff 0%, #12d8fa 100%);
+    background: radial-gradient(circle at 30% 30%, #48dbfb, #0abde3);
 }
 
+.control-btn:active {
+    transform: scale(0.95);
+    filter: brightness(0.9);
+}
 
-/* =========================================
-   ЭКРАН ПОВОРОТА (Orientation Warning)
-   ========================================= */
+/* --- ЭКРАН ПОВОРОТА --- */
 #orientation-warning {
-    display: none; /* Скрыто по умолчанию */
+    display: none;
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: #1a1a1a;
-    z-index: 9999;
+    background: #000;
+    z-index: 20001; /* Выше даже старт скрина */
     flex-direction: column;
     justify-content: center;
     align-items: center;
     color: white;
-    text-align: center;
 }
 
-#orientation-warning h2 {
-    margin-top: 20px;
-    font-size: 1.5rem;
-}
-
-#orientation-warning p {
-    color: #aaa;
-    margin-top: 10px;
-}
-
-/* Анимация иконки телефона */
 .phone-icon {
     width: 60px;
     height: 100px;
     border: 4px solid white;
     border-radius: 10px;
-    position: relative;
     animation: rotate-phone 2s infinite ease-in-out;
-}
-
-.phone-icon::before {
-    content: '';
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 40px;
-    height: 5px;
-    background: rgba(255,255,255,0.3);
-    border-radius: 5px;
+    margin-bottom: 20px;
 }
 
 @keyframes rotate-phone {
@@ -167,30 +191,19 @@ body, html {
     100% { transform: rotate(-90deg); }
 }
 
-/* =========================================
-   МЕДИА-ЗАПРОСЫ (Адаптация)
-   ========================================= */
+/* --- АДАПТАЦИЯ (MEDIA QUERIES) --- */
 
-/* 1. Если устройство мобильное И вертикальное -> Показываем "Поверни экран" */
-@media screen and (max-width: 900px) and (orientation: portrait) {
-    #orientation-warning {
-        display: flex; /* Показываем экран предупреждения */
-    }
-    #game-container, #ui-layer {
-        display: none !important; /* Скрываем игру */
-    }
+/* 1. Мобильные устройства (вертикально) - ПРОСИМ ПОВЕРНУТЬ */
+@media screen and (max-width: 950px) and (orientation: portrait) {
+    #orientation-warning { display: flex; }
+    #start-screen { display: none; }
+    #game-container, #ui-layer { display: none !important; }
 }
 
-/* 2. Если устройство мобильное И горизонтальное -> Показываем контроллеры */
-/* Используем hover: none для точного определения сенсорных экранов */
-@media screen and (max-width: 900px) and (orientation: landscape) and (hover: none) {
-    #mobile-controls {
-        display: flex; /* Показываем кнопки управления */
-    }
+/* 2. Мобильные устройства (горизонтально) - ПОКАЗЫВАЕМ УПРАВЛЕНИЕ */
+@media screen and (max-width: 950px) and (orientation: landscape) and (hover: none) {
+    #mobile-controls { display: flex; }
     
-    /* Увеличиваем элементы UI для пальцев */
-    #health-bars {
-        transform: scale(1.2); 
-        transform-origin: top left;
-    }
+    /* Скрываем некоторые десктопные элементы, если нужно */
+    .desktop-only { display: none; }
 }

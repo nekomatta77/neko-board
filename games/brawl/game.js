@@ -31,7 +31,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputEncoding = THREE.sRGBEncoding;
-document.body.appendChild(renderer.domElement);
+document.getElementById('game-container').appendChild(renderer.domElement);
 
 // --- LIGHTS ---
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.6);
