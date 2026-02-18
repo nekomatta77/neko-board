@@ -24,9 +24,9 @@ var roomsRef = db.ref('rooms');
 
 var currentUser = null;
 var selectedAvatar = 'ava1.png';
-var selectedGameType = '';
+// selectedGameType теперь определяется динамически из UI
 
-console.log("NEKO Board: Main JS v2.0 Loaded"); // Проверка загрузки нового файла
+console.log("NEKO Board: Main JS v3.0 Loaded"); 
 
 // --- AUDIO ---
 var audio = {
@@ -95,7 +95,11 @@ function switchTab(tab) {
 
 function openCreateModal(gameType) {
     audio.click();
-    selectedGameType = gameType;
+    // Автоматически выбираем нужную игру в списке
+    const selector = document.getElementById('game-type-select');
+    if (selector && gameType) {
+        selector.value = gameType;
+    }
     document.getElementById('create-room-modal').classList.add('active');
 }
 
@@ -109,25 +113,36 @@ function createRoom() {
     const name = document.getElementById('room-name-input').value.trim() || "Комната";
     const max = parseInt(document.getElementById('players-range').value);
     
-    // Создаем новую ссылку
-    const ref = roomsRef.push();
+    // Получаем выбранную игру
+    const typeSelect = document.getElementById('game-type-select');
+    const gameType = typeSelect ? typeSelect.value : 'tictactoe';
     
-    // ВАЖНО: Явно отменяем любые onDisconnect для этой ссылки на этапе создания,
-    // чтобы предотвратить удаление при переходе на другую страницу.
+    const ref = roomsRef.push();
+    // Отмена удаления при разрыве (для перехода на страницу игры)
     ref.onDisconnect().cancel(); 
 
-    const boardSize = max > 2 ? 15 : 3;
-    const initialGame = {
-        board: Array(boardSize * boardSize).fill(null),
-        turn: 0,
-        winner: null,
-        rouletteFinished: false 
-    };
+    let initialGame = {};
+
+    // Инициализация данных в зависимости от игры
+    if (gameType === 'tictactoe') {
+        const boardSize = max > 2 ? 15 : 3;
+        initialGame = {
+            board: Array(boardSize * boardSize).fill(null),
+            turn: 0,
+            winner: null,
+            rouletteFinished: false 
+        };
+    } else if (gameType === 'brawl') {
+        initialGame = {
+            state: 'waiting',
+            players: {}
+        };
+    }
 
     const roomData = {
         id: ref.key,
         name: name,
-        gameType: selectedGameType,
+        gameType: gameType,
         game: initialGame,          
         maxPlayers: max,
         currentPlayers: 0,
@@ -137,7 +152,7 @@ function createRoom() {
 
     ref.set(roomData).then(() => {
         closeModal();
-        joinGame(ref.key, selectedGameType, max, currentUser.name, currentUser.avatar);
+        joinGame(ref.key, gameType, max, currentUser.name, currentUser.avatar);
     });
 }
 
@@ -158,6 +173,7 @@ function loadServers() {
 
             const card = document.createElement('div');
             card.className = 'server-card';
+            // Передаем все параметры в joinGame
             card.onclick = () => { audio.click(); joinGame(room.id, room.gameType, room.maxPlayers, room.host); };
             card.classList.add('hover-sound');
             
@@ -183,8 +199,10 @@ function loadServers() {
 }
 
 function joinGame(roomId, gameType, maxPlayers, hostName) {
-    let fileName = 'index.html';
+    let fileName = 'index.html'; // Дефолт
+    
     if (gameType === 'tictactoe') fileName = 'tictac.html';
+    else if (gameType === 'brawl') fileName = 'brawl.html'; // Мы переименовали этот файл
     
     const url = `games/${gameType}/${fileName}?room=${roomId}&max=${maxPlayers}&user=${encodeURIComponent(currentUser.name)}&avatar=${encodeURIComponent(currentUser.avatar)}`;
     

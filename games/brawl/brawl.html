@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEKO Brawl 3D</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.0/umd/index.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+</head>
+<body>
+
+    <button id="exit-btn" onclick="exitGame()">✕</button>
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <div id="loader-text">Загрузка модели...</div>
+    </div>
+
+    <div id="joystick-zone"></div>
+    
+    <div id="touch-rotate-zone"></div>
+
+    <div id="pc-instructions">WASD - Бег | Мышь - Камера</div>
+
+    <script src="game.js"></script>
+</body>
+</html>
