@@ -2,42 +2,39 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Brawl Game - Neko Board</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEKO Brawl 3D</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,700;0,800;0,900;1,700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="css/lobby.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.0/umd/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
 </head>
 <body>
 
-    <div id="game-container">
-        </div>
+    <div id="ui-layer"></div>
 
-    <div id="ui-layer">
-        <div id="health-bars">
-            </div>
-        
-        <div id="mobile-controls">
-            <div class="control-group left">
-                <div id="joystick-area">
-                    <div id="joystick-knob"></div>
-                </div>
-            </div>
-            <div class="control-group right">
-                <button id="btn-jump" class="control-btn">⬆️</button>
-                <button id="btn-attack" class="control-btn">⚔️</button>
-            </div>
-        </div>
+    <button id="exit-btn" onclick="exitGame()">✕</button>
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <div id="loader-text">Загрузка игры...</div>
     </div>
 
-    <div id="orientation-warning">
-        <div class="phone-icon"></div>
-        <h2>Пожалуйста, переверните устройство</h2>
-        <p>Для игры необходим горизонтальный режим</p>
-    </div>
+    <div id="joystick-zone"></div>
+    <div id="touch-rotate-zone"></div>
+    <div id="pc-instructions">WASD - Бег | Мышь - Камера</div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
-    
-    <script type="module" src="game.js"></script> 
+    <script type="module" src="game.js"></script>
 </body>
 </html>

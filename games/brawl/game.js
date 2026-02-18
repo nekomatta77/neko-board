@@ -31,7 +31,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputEncoding = THREE.sRGBEncoding;
-document.getElementById('game-container').appendChild(renderer.domElement);
+document.body.appendChild(renderer.domElement);
 
 // --- LIGHTS ---
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.6);
@@ -48,15 +48,13 @@ scene.add(dirLight);
 const lobbyGroup = new THREE.Group();
 scene.add(lobbyGroup);
 
-// Слоты для позиционирования
+// Координаты слотов (где стоят игроки)
 const slots = [
-    { x: 0, z: 0 },      // ЦЕНТР (Слот для меня)
-    { x: -2.5, z: 0.5 }, // СЛЕВА (Слот для первого друга)
-    { x: 2.5, z: 0.5 },  // СПРАВА (Слот для второго друга)
-    { x: 0, z: 2.5 }     // СЗАДИ (Слот для третьего друга)
+    { x: 0, z: 0 },      // 1. Хост (Центр)
+    { x: -2.5, z: 0.5 }, // 2. Игрок (Слева)
+    { x: 2.5, z: 0.5 },  // 3. Игрок (Справа)
+    { x: 0, z: 2.5 }     // 4. Игрок (Сзади)
 ];
-
-const hologramColors = [0xff4757, 0x2ed573, 0xffa502, 0x5352ed];
 
 function createMinimalStage() {
     const base = new THREE.Mesh(
@@ -67,10 +65,10 @@ function createMinimalStage() {
     base.receiveShadow = true;
     lobbyGroup.add(base);
 
-    slots.forEach((slot, i) => {
+    slots.forEach((slot) => {
         const marker = new THREE.Mesh(
             new THREE.CircleGeometry(0.8, 32),
-            new THREE.MeshBasicMaterial({ color: i===0 ? 0x6c5ce7 : 0xcccccc, transparent: true, opacity: 0.5 })
+            new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.5 })
         );
         marker.rotation.x = -Math.PI / 2;
         marker.position.set(slot.x, 0.01, slot.z);
@@ -111,8 +109,9 @@ const remotePlayers = {};
 const roomRef = db.ref(`rooms/${roomId}`);
 const playersRef = roomRef.child('players');
 const myPlayerRef = playersRef.push();
-const myPlayerKey = myPlayerRef.key;
+const myPlayerKey = myPlayerRef.key; // Наш уникальный ID
 
+// 1. Вход в комнату
 myPlayerRef.set({ 
     name: username, 
     ready: false, 
@@ -121,87 +120,89 @@ myPlayerRef.set({
 });
 myPlayerRef.onDisconnect().remove();
 
-// --- ИСПРАВЛЕННАЯ ФУНКЦИЯ ПОЗИЦИОНИРОВАНИЯ ---
+// Функция распределения мест в лобби
 function updateLobbyPositions() {
-    if (gameState.mode === 'GAME') return;
+    if (gameState.mode === 'GAME') return; // В игре позиция свободная
 
-    // 1. Я ВСЕГДА В ЦЕНТРЕ (Слот 0)
-    if (player.mesh) {
-        player.mesh.position.set(slots[0].x, 0, slots[0].z);
-        player.mesh.rotation.y = Math.PI;
+    // Получаем все ключи игроков (включая нас) и сортируем их
+    // Тот, кто зашел раньше - будет первым в списке
+    const allKeys = [myPlayerKey, ...Object.keys(remotePlayers)].sort();
+    
+    // Находим свой индекс
+    const myIndex = allKeys.indexOf(myPlayerKey);
+    if (myIndex !== -1 && slots[myIndex]) {
+        // Ставим себя на слот
+        const s = slots[myIndex];
+        if (player.mesh) {
+            player.mesh.position.set(s.x, 0, s.z);
+            player.mesh.rotation.y = 0; // Смотрим в камеру
+        }
     }
 
-    // 2. ВСЕ ОСТАЛЬНЫЕ (Удаленные) занимают слоты 1, 2, 3...
-    const remoteKeys = Object.keys(remotePlayers);
-    
-    remoteKeys.forEach((key, index) => {
-        // Берем следующий свободный слот (индекс + 1)
-        // Пример: Первый вошедший враг -> Слот 1, Второй -> Слот 2
-        const slotIndex = index + 1;
-        
-        if (slots[slotIndex]) {
+    // Расставляем остальных
+    Object.keys(remotePlayers).forEach(key => {
+        const index = allKeys.indexOf(key);
+        if (index !== -1 && slots[index]) {
+            const s = slots[index];
             const rp = remotePlayers[key];
-            const s = slots[slotIndex];
-
-            // Двигаем голограмму
-            if (rp.waitingGroup) {
-                rp.targetPos.set(s.x, 0, s.z);
-            }
-            // Двигаем модель
+            // Принудительно ставим на слот (игнорируя данные из сети в лобби)
             if (rp.mesh) {
-                rp.targetPos.set(s.x, 0, s.z);
+                rp.targetPos.set(s.x, 0, s.z); 
                 rp.mesh.position.set(s.x, 0, s.z);
-                rp.targetRot = Math.PI;
+                rp.targetRot = 0;
             }
         }
     });
 }
 
-// Добавление игрока
+// 2. Добавление игрока
 playersRef.on('child_added', (snap) => {
     const key = snap.key;
+    // ГЛАВНОЕ ИСПРАВЛЕНИЕ: Не создаем RemotePlayer для себя!
     if (key === myPlayerKey) return; 
 
     const data = snap.val();
-    
-    // Генерируем цвет
-    const colorIndex = key.charCodeAt(key.length - 1) % hologramColors.length;
-    const color = hologramColors[colorIndex];
-
-    const rp = new RemotePlayer(scene, key, data, color);
+    const rp = new RemotePlayer(scene, key, data);
     remotePlayers[key] = rp;
     
-    updateLobbyPositions();
+    updateLobbyPositions(); // Пересчитать места
 });
 
-// Обновление
+// 3. Обновление данных
 playersRef.on('child_changed', (snap) => {
     const key = snap.key;
     if (key === myPlayerKey) return;
     
     const rp = remotePlayers[key];
     if (rp) {
+        // В режиме ИГРЫ обновляем позицию из сети
         if (gameState.mode === 'GAME') {
             rp.updateNetworkData(snap.val());
         } else {
+            // В ЛОББИ обновляем только скин и анимацию (позицию держим слотом)
             const d = snap.val();
-            rp.updateNetworkData(d); // Загрузит модель, если character появился
             if (d.character && rp.mesh) rp.mesh.visible = true;
+            if (d.anim) rp.playAnim(d.anim);
+        }
+        
+        // Показать модель, если выбрали героя
+        if (snap.val().character && rp.mesh) {
+            rp.mesh.visible = true; 
         }
     }
 });
 
-// Выход
+// 4. Выход игрока
 playersRef.on('child_removed', (snap) => {
     const key = snap.key;
     if (remotePlayers[key]) {
         remotePlayers[key].dispose();
         delete remotePlayers[key];
-        updateLobbyPositions();
+        updateLobbyPositions(); // Кто-то ушел, сдвигаемся (опционально)
     }
 });
 
-// Хост
+// 5. Логика Хоста
 roomRef.once('value').then(snap => {
     if(snap.val() && snap.val().host === username) {
         gameState.isHost = true;
@@ -216,12 +217,14 @@ roomRef.child('players').on('value', snap => {
     const all = snap.val();
     if(!all) return;
     const keys = Object.keys(all);
+    // Ждем готовности всех
     if(keys.length > 0 && keys.every(k => all[k].ready)) {
         setTimeout(() => roomRef.child('game').update({ state: 'PLAYING' }), 1000);
     }
 });
 
-// UI
+
+// --- UI LOBBY ---
 const lobby = new Lobby({
     previewCharacter: (id) => { isPreviewing = true; if(player.mesh) player.mesh.visible = true; },
     hidePreview: () => { 
@@ -233,7 +236,7 @@ const lobby = new Lobby({
         gameState.isCharSelected = true;
         if(player.mesh) player.mesh.visible = true;
         myPlayerRef.update({ character: id });
-        updateLobbyPositions();
+        updateLobbyPositions(); // Убедиться, что стоим на месте
     },
     rotatePlayerInLobby: (delta) => { if(player.mesh) player.mesh.rotation.y += delta; },
     setPlayerReady: () => { gameState.isReady = true; myPlayerRef.update({ ready: true }); },
@@ -246,13 +249,15 @@ function startGame() {
     lobbyGroup.visible = false;
     gameGroup.visible = true;
     document.getElementById('ui-layer').style.display = 'none';
+    
+    // Сброс позиции для старта игры (все в центр или на спавн-поинты)
     if(player.mesh) {
         player.mesh.position.set(0, 0, 0); 
         player.mesh.rotation.y = Math.PI;
     }
 }
 
-// Inputs
+// --- INPUTS & ATTACK ---
 const inputs = { forward: false, backward: false, left: false, right: false, joystick: { angle: 0, active: false } };
 const emptyInputs = { forward: false, backward: false, left: false, right: false, joystick: { angle: 0, active: false } };
 
@@ -288,6 +293,7 @@ document.addEventListener('mousemove', (e) => {
     }
 });
 
+// --- GAME LOOP ---
 const clock = new THREE.Clock();
 const gameCamDist = 2.3; const gameCamHeight = 2.0;
 
@@ -295,16 +301,21 @@ function animate() {
     requestAnimationFrame(animate);
     const dt = clock.getDelta();
 
+    // Обновляем удаленных
     Object.values(remotePlayers).forEach(rp => rp.update(dt));
 
     if (player.mesh) {
         player.mesh.visible = (gameState.mode === 'GAME') || gameState.isCharSelected || isPreviewing;
 
         if (gameState.mode === 'GAME') {
+            // === GAME MODE ===
             player.update(dt, inputs, cameraAngleY);
+            
+            // Отправляем данные (только если двигаемся или атакуем, для экономии можно добавить проверки)
             const netData = player.getNetworkData();
             if (netData) myPlayerRef.update(netData);
 
+            // Камера
             const playerPos = player.getPosition();
             const idealX = playerPos.x + gameCamDist * Math.sin(cameraAngleY) * Math.cos(cameraAngleX);
             const idealZ = playerPos.z + gameCamDist * Math.cos(cameraAngleY) * Math.cos(cameraAngleX);
@@ -312,10 +323,15 @@ function animate() {
             
             camera.position.lerp(new THREE.Vector3(idealX, idealY, idealZ), 0.1);
             camera.lookAt(playerPos.x, playerPos.y + 1.4, playerPos.z);
+
         } else {
-            player.update(dt, emptyInputs, 0); 
+            // === LOBBY MODE ===
+            player.update(dt, emptyInputs, 0);
+            
+            // Постоянно держим позицию слота в лобби
             updateLobbyPositions();
 
+            // Камера Лобби
             const playerPos = player.getPosition();
             let targetX = playerPos.x, targetZ, targetY;
             
@@ -332,6 +348,7 @@ function animate() {
     renderer.render(scene, camera);
 }
 
+// Mobile controls...
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 if (isMobile) {
     const manager = nipplejs.create({ zone: document.getElementById('joystick-zone'), mode: 'static', position: { left: '50%', top: '50%' }, color: 'white', size: 100 });
