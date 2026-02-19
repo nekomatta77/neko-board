@@ -7,7 +7,8 @@ export class Toaster {
         this.currentAction = null;
         this.activeActionName = ''; 
         
-        this.moveSpeed = 0.02; 
+        // Базовая скорость
+        this.moveSpeed = 1.2; // Изменили логику, теперь умножаем на dt, поэтому значение больше
         this.runAnimSpeed = 1;
         this.modelScale = 0.018; 
         
@@ -26,7 +27,6 @@ export class Toaster {
         this.isAiming = false;
         this.aimTarget = new THREE.Vector3();
         
-        // Сохраняем последний выстрел для отправки в сеть
         this.latestFireTarget = null;
         
         this.aimGroup = new THREE.Group();
@@ -180,6 +180,13 @@ export class Toaster {
         this.aimCircle.position.set(this.aimTarget.x, 0.05, this.aimTarget.z);
     }
 
+    // НОВАЯ ФУНКЦИЯ (отмена прицеливания)
+    cancelAiming() {
+        if (!this.isAiming) return;
+        this.isAiming = false;
+        this.aimGroup.visible = false;
+    }
+
     stopAimingAndFire() {
         if (!this.isAiming) return;
         this.isAiming = false;
@@ -189,8 +196,6 @@ export class Toaster {
 
     fireToast(targetPos) {
         this.playAnim('Jump'); 
-        
-        // Отправляем данные в сеть (в game.js)
         this.latestFireTarget = { x: targetPos.x, y: targetPos.y, z: targetPos.z, id: Date.now() };
 
         const geometry = new THREE.BoxGeometry(0.5, 0.1, 0.5);
@@ -364,11 +369,21 @@ export class Toaster {
             if (!this.isJumping) this.playAnim('Run');
             
             const angleOffset = -cameraAngleY;
-            const realX = dx * Math.cos(angleOffset) - dz * Math.sin(angleOffset);
-            const realZ = dx * Math.sin(angleOffset) + dz * Math.cos(angleOffset);
+            const inputX = dx * Math.cos(angleOffset) - dz * Math.sin(angleOffset);
+            const inputZ = dx * Math.sin(angleOffset) + dz * Math.cos(angleOffset);
 
-            this.mesh.position.x += realX * this.moveSpeed;
-            this.mesh.position.z += realZ * this.moveSpeed;
+            // ИДЕАЛЬНАЯ СИНХРОНИЗАЦИЯ СКОРОСТИ
+            // 1. Нормализуем вектор (чтобы по диагонали скорость была такой же, как по прямой)
+            const len = Math.sqrt(inputX * inputX + inputZ * inputZ);
+            const normLen = Math.min(len, 1);
+            const realX = (inputX / len) * normLen;
+            const realZ = (inputZ / len) * normLen;
+
+            // 2. Умножаем на dt * 60 (чтобы на низком FPS скорость компенсировалась)
+            const speedMultiplier = this.moveSpeed * (dt * 60);
+
+            this.mesh.position.x += realX * speedMultiplier;
+            this.mesh.position.z += realZ * speedMultiplier;
 
             const targetRotation = Math.atan2(-realX, -realZ) + Math.PI;
             let rotDiff = targetRotation - this.mesh.rotation.y;
@@ -393,11 +408,10 @@ export class Toaster {
         if (!this.mesh) return null;
         return {
             x: this.mesh.position.x,
-            // y убрали, чтобы не мешать локальной интерполяции прыжка врага
             z: this.mesh.position.z,
             ry: this.mesh.rotation.y,
             anim: this.activeActionName,
-            fireEvent: this.latestFireTarget // Передаем цель выстрела!
+            fireEvent: this.latestFireTarget 
         };
     }
     

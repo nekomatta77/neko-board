@@ -49,12 +49,12 @@ const localUiHTML = `
         <div id="action-buttons" style="position:absolute; bottom:30px; right:30px; width:180px; height:180px; opacity:0.7; pointer-events:auto; transition: opacity 0.2s;">
             <button id="btn-jump" style="position:absolute; bottom:0; right:0; width:85px; height:85px; border-radius:50%; background:rgba(50,200,50,0.5); border:3px solid rgba(100,255,100,0.8); color:white; font-size:35px; box-shadow:0 0 15px rgba(50,200,50,0.5);">🔼</button>
             
-            <button id="btn-ability" style="position:absolute; bottom:20px; right:110px; width:60px; height:60px; border-radius:50%; background:rgba(50,150,255,0.3); border:2px solid rgba(100,200,255,0.8); color:white; font-size:20px; display:flex; align-items:center; justify-content:center; outline:none; -webkit-tap-highlight-color:transparent;">
-                <div id="ability-thumb" style="width:25px; height:25px; background:rgba(255,255,255,0.8); border-radius:50%; box-shadow:0 2px 5px rgba(0,0,0,0.5); position:absolute; pointer-events:none; transition: transform 0.15s ease-out;"></div>
+            <button id="btn-ability" style="position:absolute; bottom:15px; right:110px; width:75px; height:75px; border-radius:50%; background:rgba(50,150,255,0.3); border:2px solid rgba(100,200,255,0.8); color:white; font-size:24px; display:flex; align-items:center; justify-content:center; outline:none; -webkit-tap-highlight-color:transparent;">
+                <div id="ability-thumb" style="width:28px; height:28px; background:rgba(255,255,255,0.8); border-radius:50%; box-shadow:0 2px 5px rgba(0,0,0,0.5); position:absolute; pointer-events:none; transition: transform 0.15s ease-out;"></div>
                 <span style="position:absolute; pointer-events:none; text-shadow: 1px 1px 2px black;">🍞</span>
                 <div id="ability-cd-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; background:rgba(0,0,0,0.7); color:white; font-weight:bold; font-size:24px; align-items:center; justify-content:center;"></div>
             </button>
-            <button id="btn-ult" style="position:absolute; bottom:90px; right:90px; width:65px; height:65px; border-radius:50%; background:rgba(255,200,0,0.5); border:2px solid rgba(255,255,100,0.8); color:white; font-size:24px;">🔥</button>
+            <button id="btn-ult" style="position:absolute; bottom:95px; right:85px; width:65px; height:65px; border-radius:50%; background:rgba(255,200,0,0.5); border:2px solid rgba(255,255,100,0.8); color:white; font-size:24px;">🔥</button>
         </div>
     </div>
 `;
@@ -81,6 +81,7 @@ function updateLocalUI(current, max) {
         const percent = Math.max(0, (current / max) * 100);
         bar.style.width = percent + '%';
         text.innerText = `${Math.max(0, current)} / ${max}`;
+        
         if (percent < 30) {
             bar.style.background = 'linear-gradient(90deg, #ff0055, #ff3333)';
             bar.style.boxShadow = '0 0 8px rgba(255,0,85,0.6)';
@@ -362,7 +363,6 @@ function animate() {
                 const now = Date.now();
                 const netData = player.getNetworkData();
                 
-                // МГНОВЕННАЯ ОТПРАВКА, ЕСЛИ БЫЛ ВЫСТРЕЛ ИЛИ ПРЫЖОК
                 const firedNow = netData.fireEvent && netData.fireEvent.id !== lastNetData.fireEvent?.id;
                 
                 if (firedNow || now - lastNetUpdate > 100) { 
@@ -410,15 +410,56 @@ if (isMobile) {
 
     const btnAbility = document.getElementById('btn-ability');
     const abilityThumb = document.getElementById('ability-thumb');
+    
     let mobileAimStart = {x: 0, y: 0};
+    let didDragAbility = false;
+    let finalDragDist = 0;
     
     btnAbility.addEventListener('touchstart', e => {
         e.preventDefault(); e.stopPropagation();
         if (Date.now() < player.abilityCooldown) return;
+        
+        didDragAbility = false;
+        finalDragDist = 0;
         player.startAiming();
+        
         const rect = btnAbility.getBoundingClientRect();
         mobileAimStart = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-        player.updateAiming(player.getPosition());
+        
+        // --- АВТОНАВЕДЕНИЕ (Поиск ближайшего врага) ---
+        let closestEnemy = null;
+        let minTargetDist = Infinity;
+        const myPos = player.getPosition();
+        
+        Object.values(remotePlayers).forEach(rp => {
+            if (!rp.isDead && !rp.isHologram) {
+                const d = myPos.distanceTo(rp.targetPos);
+                if (d < minTargetDist && d < 20) { // Ищем в радиусе 20
+                    minTargetDist = d;
+                    closestEnemy = rp;
+                }
+            }
+        });
+
+        let angleWorld;
+        if (closestEnemy) {
+            const dx = closestEnemy.targetPos.x - myPos.x;
+            const dz = closestEnemy.targetPos.z - myPos.z;
+            angleWorld = Math.atan2(dz, dx);
+        } else {
+            // Если врагов нет - целимся туда, куда смотрим
+            const forwardX = Math.sin(player.mesh.rotation.y);
+            const forwardZ = Math.cos(player.mesh.rotation.y);
+            angleWorld = Math.atan2(forwardZ, forwardX);
+        }
+        
+        // Ставим прицел сразу на цель
+        const distWorld = closestEnemy ? minTargetDist : 12; 
+        player.updateAiming(new THREE.Vector3(
+            myPos.x + Math.cos(angleWorld) * distWorld,
+            0,
+            myPos.z + Math.sin(angleWorld) * distWorld
+        ));
         
         abilityThumb.style.transition = 'none';
         abilityThumb.style.transform = `translate(0px, 0px)`;
@@ -432,38 +473,48 @@ if (isMobile) {
         let dx = touch.clientX - mobileAimStart.x;
         let dy = touch.clientY - mobileAimStart.y;
         
-        const maxDistScreen = 30; // Максимальное отклонение ползунка (пиксели)
         const distScreen = Math.sqrt(dx*dx + dy*dy);
+        finalDragDist = distScreen;
+        
+        if (distScreen > 10) didDragAbility = true; // Засчитываем как ручное прицеливание
+        
+        const maxDistScreen = 50; 
         
         if (distScreen > maxDistScreen) {
             dx = (dx / distScreen) * maxDistScreen;
             dy = (dy / distScreen) * maxDistScreen;
         }
         
-        // Визуальное перемещение ползунка
         abilityThumb.style.transform = `translate(${dx}px, ${dy}px)`;
         
-        const distWorld = (distScreen / maxDistScreen) * 15; 
-        const angleScreen = Math.atan2(dy, dx);
-        const angleWorld = angleScreen + cameraAngleY + Math.PI / 2;
-        
-        const myPos = player.getPosition();
-        player.updateAiming(new THREE.Vector3(
-            myPos.x + Math.cos(angleWorld) * distWorld,
-            0,
-            myPos.z + Math.sin(angleWorld) * distWorld
-        ));
+        // Переписываем автонаведение ручным управлением
+        if (distScreen > 5) {
+            const distWorld = (distScreen / maxDistScreen) * 15; 
+            const angleScreen = Math.atan2(dy, dx);
+            const angleWorld = angleScreen + cameraAngleY + Math.PI / 2;
+            
+            const myPos = player.getPosition();
+            player.updateAiming(new THREE.Vector3(
+                myPos.x + Math.cos(angleWorld) * distWorld,
+                0,
+                myPos.z + Math.sin(angleWorld) * distWorld
+            ));
+        }
     });
 
     btnAbility.addEventListener('touchend', e => {
         e.preventDefault(); e.stopPropagation();
         if (!player.isAiming) return;
         
-        // Возвращаем ползунок в центр плавно
         abilityThumb.style.transition = 'transform 0.2s ease-out';
         abilityThumb.style.transform = `translate(0px, 0px)`;
         
-        player.stopAimingAndFire();
+        // --- ОТМЕНА: Если игрок вернул стик в центр ---
+        if (didDragAbility && finalDragDist < 15) {
+            player.cancelAiming();
+        } else {
+            player.stopAimingAndFire();
+        }
     });
 
     document.getElementById('btn-settings').addEventListener('touchstart', (e) => {

@@ -1,6 +1,6 @@
 /* --- БАЗОВЫЕ НАСТРОЙКИ --- */
 body {
-    font-family: 'Montserrat', sans-serif; /* Применяем новый шрифт */
+    font-family: 'Montserrat', sans-serif;
 }
 
 #ui-layer {
@@ -69,7 +69,6 @@ body {
 /* --- ДЕТАЛЬНОЕ МЕНЮ (3D VIEW) --- */
 .hero-selection-overlay {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    /* Градиент снизу вверх, чтобы текст читался, но центр был прозрачным */
     background: radial-gradient(circle at center, rgba(0,0,0,0) 20%, rgba(0,0,0,0.6) 60%, rgba(0,0,0,0.9) 100%);
     display: flex; align-items: center; justify-content: center;
     pointer-events: auto; opacity: 0; visibility: hidden; transition: 0.4s;
@@ -85,16 +84,12 @@ body {
 .panel-left { display: flex; flex-direction: column; justify-content: center; text-align: left; padding-left: 20px; z-index: 2; pointer-events: none; }
 .panel-right { display: flex; flex-direction: column; justify-content: center; align-items: flex-end; text-align: right; padding-right: 20px; z-index: 2; pointer-events: none; }
 
-/* Интерактивные элементы внутри панелей включаем обратно */
 .panel-left > *, .panel-right > * { pointer-events: auto; }
 
-/* 3D ЗОНА (Центр) */
 .panel-center { position: relative; cursor: grab; }
 .panel-center:active { cursor: grabbing; }
 
 /* --- ТИПОГРАФИКА И ЭЛЕМЕНТЫ UI --- */
-
-/* Заголовок Имени */
 .hero-header h1 {
     font-size: 80px; margin: 0; font-style: italic; line-height: 0.85;
     color: white; text-transform: uppercase; margin-bottom: 10px;
@@ -102,7 +97,6 @@ body {
     text-shadow: 20px 20px 60px rgba(0,0,0,0.5);
 }
 
-/* Роль */
 .hero-role { 
     font-size: 20px; color: #ff9f43; font-weight: 700; 
     margin-bottom: 35px; text-transform: uppercase; letter-spacing: 4px; 
@@ -111,20 +105,17 @@ body {
     padding-bottom: 5px;
 }
 
-/* История (Lore) - Эстетичный блок */
 .hero-lore {
     background: linear-gradient(180deg, rgba(30, 30, 35, 0.9) 0%, rgba(20, 20, 25, 0.95) 100%);
     padding: 30px; border-radius: 24px;
     border: 1px solid rgba(255,255,255,0.08);
     border-left: 6px solid #ff9f43;
-    
     color: #d1d1d1; font-size: 15px; line-height: 1.7; font-weight: 500;
     max-width: 400px; 
     backdrop-filter: blur(15px);
     box-shadow: 0 20px 50px rgba(0,0,0,0.3);
 }
 
-/* Кнопка "ВЫБРАТЬ" */
 .select-btn {
     margin-top: 40px; padding: 22px 55px; border-radius: 60px;
     background: linear-gradient(90deg, #ff9f43, #ff6b6b);
@@ -136,8 +127,6 @@ body {
 .select-btn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 20px 50px rgba(255, 107, 107, 0.5); }
 
 /* --- ПРАВАЯ ПАНЕЛЬ (СТАТЫ И АБИЛКИ) --- */
-
-/* Статы */
 .stat-box { 
     background: rgba(30,30,35, 0.85); padding: 25px; border-radius: 20px; 
     width: 320px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.05);
@@ -147,7 +136,6 @@ body {
 .stat-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
 .stat-fill { height: 100%; border-radius: 4px; }
 
-/* Карточки способностей */
 .ability-card {
     background: linear-gradient(135deg, rgba(40, 40, 45, 0.9) 0%, rgba(25, 25, 30, 0.95) 100%);
     padding: 20px; border-radius: 18px;
@@ -169,7 +157,6 @@ body {
 .ability-name { font-weight: 800; font-size: 16px; color: white; margin-bottom: 4px; text-transform: uppercase; }
 .ability-desc { font-size: 13px; color: #999; line-height: 1.45; font-weight: 500; }
 
-/* Кнопки навигации */
 .back-btn {
     position: absolute; top: 40px; left: 40px;
     background: rgba(255,255,255,0.1); border: none; color: white;
@@ -179,7 +166,6 @@ body {
 }
 .back-btn:hover { background: rgba(255,255,255,0.25); transform: scale(1.1); }
 
-/* Кнопка ГОТОВ */
 #ready-btn {
     position: absolute; bottom: 40px; right: 40px;
     padding: 22px 60px; background: #2ed573; color: white;
@@ -191,12 +177,51 @@ body {
 #ready-btn.visible { opacity: 1; visibility: visible; transform: translateY(0); }
 #ready-btn.pushed { background: #555; cursor: default; transform: scale(0.95); box-shadow: none; }
 
-/* АДАПТИВ */
+/* --- АДАПТИВ (Ландшафт для мобильных) --- */
 @media (max-width: 1000px) {
-    .hero-layout { grid-template-columns: 1fr; grid-template-rows: auto 350px auto; overflow-y: auto; display: flex; flex-direction: column; }
-    .panel-center { height: 350px; order: -1; }
-    .hero-header h1 { font-size: 48px; }
-    .panel-left, .panel-right { width: 100%; align-items: center; text-align: center; padding: 0; pointer-events: auto; }
-    .ability-card, .stat-box { width: 90%; text-align: left; }
-    .hero-lore { text-align: left; }
+    /* Сохраняем 3 колонки, но сжимаем элементы */
+    .hero-layout { 
+        grid-template-columns: 260px 1fr 260px; 
+        grid-template-rows: auto;
+        height: 100%; gap: 15px; 
+    }
+    
+    .hero-header h1 { font-size: 36px; margin-bottom: 5px; }
+    .hero-role { font-size: 13px; margin-bottom: 15px; }
+    
+    .hero-lore { 
+        font-size: 11px; padding: 15px; max-width: 100%; 
+        border-radius: 16px;
+    }
+    
+    .select-btn { 
+        padding: 12px 30px; font-size: 16px; margin-top: 15px; 
+    }
+    
+    .stat-box { 
+        width: 100%; padding: 15px; margin-bottom: 10px; 
+        border-radius: 16px;
+    }
+    .stat-row { font-size: 11px; }
+    
+    .ability-card { 
+        width: 100%; padding: 12px; margin-top: 10px; 
+        border-radius: 16px;
+    }
+    .ability-icon { width: 24px; height: 24px; font-size: 10px; margin-bottom: 5px; }
+    .ability-name { font-size: 12px; }
+    .ability-desc { font-size: 10px; line-height: 1.3; }
+    
+    .back-btn { top: 15px; left: 15px; width: 40px; height: 40px; font-size: 20px; }
+    #ready-btn { bottom: 20px; right: 20px; padding: 15px 40px; font-size: 16px; }
+}
+
+@media (max-width: 750px) {
+    /* Для совсем маленьких экранов (старые iPhone) */
+    .hero-layout { grid-template-columns: 210px 1fr 210px; gap: 10px; }
+    .hero-header h1 { font-size: 28px; }
+    .hero-lore { font-size: 10px; padding: 10px; }
+    .select-btn { padding: 10px 20px; font-size: 14px; }
+    .stat-box { padding: 10px; }
+    .ability-card { padding: 10px; }
 }
