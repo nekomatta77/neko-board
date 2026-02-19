@@ -9,13 +9,13 @@ export class RemotePlayer {
         
         this.modelScale = 0.018; 
         
-        // --- ЗДОРОВЬЕ ---
         this.maxHp = 3200;
         this.hp = initialData.hp !== undefined ? initialData.hp : 3200;
         this.isDead = initialData.isDead || false;
         
         this._targetRot = initialData.ry !== undefined ? initialData.ry : Math.PI;
-        this.targetPos = new THREE.Vector3(initialData.x || 0, 0, initialData.z || 0);
+        // Добавлено считывание initialData.y
+        this.targetPos = new THREE.Vector3(initialData.x || 0, initialData.y || 0, initialData.z || 0);
         
         this.isHologram = !initialData.character;
 
@@ -25,7 +25,7 @@ export class RemotePlayer {
         this.baseTexture = this.texLoader.load(this.path + 'ToastBrawler_Low_OG_BaseColor.png');
         
         this.createHologram(); 
-        this.createHpBar(); // Создаем 3D полоску ХП
+        this.createHpBar(); 
 
         this.load(initialData.character || 'toaster');
     }
@@ -49,7 +49,6 @@ export class RemotePlayer {
         this.scene.add(this.hologramGroup);
     }
 
-    // --- СОЗДАНИЕ 3D ПОЛОСКИ HP ---
     createHpBar() {
         this.hpCanvas = document.createElement('canvas');
         this.hpCanvas.width = 256;
@@ -57,15 +56,9 @@ export class RemotePlayer {
         this.hpCtx = this.hpCanvas.getContext('2d');
         
         this.hpTexture = new THREE.CanvasTexture(this.hpCanvas);
-        const spriteMat = new THREE.SpriteMaterial({ 
-            map: this.hpTexture, 
-            transparent: true,
-            depthTest: false // Чтобы ХП было видно даже сквозь стены (по желанию можно убрать)
-        });
+        const spriteMat = new THREE.SpriteMaterial({ map: this.hpTexture, transparent: true, depthTest: false });
         this.hpSprite = new THREE.Sprite(spriteMat);
         this.hpSprite.scale.set(1.5, 0.375, 1);
-        
-        // Полоска скрыта, пока игрок голограмма
         this.hpSprite.visible = !this.isHologram; 
         
         this.scene.add(this.hpSprite);
@@ -76,20 +69,17 @@ export class RemotePlayer {
         const ctx = this.hpCtx;
         ctx.clearRect(0, 0, 256, 64);
         
-        // Фон полоски (темный)
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
         ctx.fillRect(10, 10, 236, 44);
         
-        // Красная полоска здоровья
         ctx.fillStyle = '#ff4d4d';
         const hpPercent = Math.max(0, this.hp / this.maxHp);
         ctx.fillRect(14, 14, 228 * hpPercent, 36);
         
-        // Имя (опционально)
         ctx.fillStyle = 'white';
         ctx.font = 'bold 24px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText("ВРАГ", 128, 42); // Можно заменить на this.id или имя из БД
+        ctx.fillText("ВРАГ", 128, 42); 
 
         this.hpTexture.needsUpdate = true;
     }
@@ -127,7 +117,7 @@ export class RemotePlayer {
 
             this.loadAnim('Idle', 'idle.fbx', () => this.playAnim('Idle'));
             this.loadAnim('Run', 'run.fbx');
-            this.loadAnim('Punch', 'punch.fbx', (action) => {
+            this.loadAnim('Jump', 'jump.fbx', (action) => {
                 action.loop = THREE.LoopOnce;
                 action.clampWhenFinished = true;
             });
@@ -150,8 +140,8 @@ export class RemotePlayer {
 
     playAnim(name) {
         if (!this.animations[name]) return;
-        if (this.currentAction === this.animations[name] && name !== 'Punch') return;
-        if (this.isDead && name !== 'Die') return; // Мертвый не двигается
+        if (this.currentAction === this.animations[name] && name !== 'Jump') return;
+        if (this.isDead && name !== 'Die') return;
 
         const newAction = this.animations[name];
         if (this.currentAction) this.currentAction.fadeOut(0.2);
@@ -161,24 +151,24 @@ export class RemotePlayer {
     }
 
     updateNetworkData(data) {
-        if (data.x !== undefined) this.targetPos.set(data.x, 0, data.z);
+        // Добавлено считывание Y для прыжков
+        if (data.x !== undefined) this.targetPos.set(data.x, data.y !== undefined ? data.y : 0, data.z);
         if (data.ry !== undefined) this.targetRot = data.ry;
         
         if (data.character && this.isHologram) {
             this.isHologram = false;
             if (this.mesh) this.mesh.visible = true;
             if (this.hologramGroup) this.hologramGroup.visible = false;
-            if (this.hpSprite) this.hpSprite.visible = true; // Показываем полоску ХП
+            if (this.hpSprite) this.hpSprite.visible = true;
         }
 
-        // Обновляем здоровье, если оно пришло
         if (data.hp !== undefined && data.hp !== this.hp) {
             this.hp = data.hp;
             this.updateHpBarCanvas();
             if (this.hp <= 0 && !this.isDead) {
                 this.isDead = true;
                 this.playAnim('Die');
-                if (this.hpSprite) this.hpSprite.visible = false; // Прячем полоску при смерти
+                if (this.hpSprite) this.hpSprite.visible = false; 
             }
         }
 
@@ -195,7 +185,6 @@ export class RemotePlayer {
             this.ring.rotation.z -= dt * 0.5;
         }
 
-        // Позиция полоски здоровья (летит над головой)
         if (this.hpSprite && !this.isHologram && !this.isDead) {
             this.hpSprite.position.lerp(
                 new THREE.Vector3(this.targetPos.x, this.targetPos.y + 1.8, this.targetPos.z), 
@@ -207,7 +196,8 @@ export class RemotePlayer {
         this.mixer.update(dt);
 
         if (!this.isDead) {
-            this.mesh.position.lerp(this.targetPos, 0.1);
+            // Lerp теперь интерполирует и высоту Y тоже!
+            this.mesh.position.lerp(this.targetPos, 0.2); 
             
             let rotDiff = this.targetRot - this.mesh.rotation.y;
             while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;

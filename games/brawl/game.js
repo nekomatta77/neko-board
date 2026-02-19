@@ -4,7 +4,6 @@ import { Lobby } from './ui/Lobby.js';
 
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-// Очищаем стили системной кнопки выхода, чтобы остался только один прозрачный крестик
 const exitBtn = document.getElementById('exit-btn');
 if (exitBtn) {
     exitBtn.style.background = 'transparent';
@@ -23,6 +22,14 @@ const localUiHTML = `
         <p style="color:#aaa; margin-top:10px;">Игра предназначена только для горизонтального (Landscape) режима</p>
     </div>
 
+    <div id="lobby-settings" style="display:none; position:absolute; top:20px; right:20px; z-index:200;">
+        <button id="btn-settings" style="width:45px; height:45px; border-radius:50%; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.2); color:white; font-size:20px; pointer-events:auto; backdrop-filter:blur(5px);">⚙️</button>
+        <div id="settings-panel" style="display:none; position:absolute; top:55px; right:0px; background:rgba(15,20,30,0.9); padding:15px; border-radius:15px; border:1px solid rgba(255,255,255,0.1); color:white; pointer-events:auto; font-family:sans-serif; backdrop-filter:blur(10px);">
+            <div style="font-size:14px; margin-bottom:10px;">Прозрачность кнопок:</div>
+            <input type="range" id="opacity-slider" min="0.1" max="1" step="0.1" value="0.7">
+        </div>
+    </div>
+
     <div id="local-ui" style="display:none; position:absolute; top:20px; left:20px; background: rgba(15, 20, 30, 0.4); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-radius: 40px; padding: 6px 16px 6px 6px; z-index: 100; align-items: center; gap: 12px; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 8px 32px rgba(0,0,0,0.3); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
         <div style="position: relative; flex-shrink: 0;">
             <img src="assets/avatars/ava1.png" style="width: 44px; height: 44px; border-radius: 50%; border: 2px solid #00ffcc; box-shadow: 0 0 10px rgba(0, 255, 204, 0.4); object-fit: cover; display: block;">
@@ -39,18 +46,12 @@ const localUiHTML = `
     </div>
 
     <div id="mobile-hud" style="display:none; position:absolute; inset:0; pointer-events:none; z-index:200;">
-        <button id="btn-settings" style="position:absolute; top:70px; right:20px; width:45px; height:45px; border-radius:50%; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.2); color:white; font-size:20px; pointer-events:auto; backdrop-filter:blur(5px);">⚙️</button>
-        
-        <div id="settings-panel" style="display:none; position:absolute; top:125px; right:20px; background:rgba(15,20,30,0.9); padding:15px; border-radius:15px; border:1px solid rgba(255,255,255,0.1); color:white; pointer-events:auto; font-family:sans-serif; backdrop-filter:blur(10px);">
-            <div style="font-size:14px; margin-bottom:10px;">Прозрачность кнопок:</div>
-            <input type="range" id="opacity-slider" min="0.1" max="1" step="0.1" value="0.7">
-        </div>
-
         <div id="action-buttons" style="position:absolute; bottom:30px; right:30px; width:180px; height:180px; opacity:0.7; pointer-events:auto; transition: opacity 0.2s;">
-            <button id="btn-attack" style="position:absolute; bottom:0; right:0; width:85px; height:85px; border-radius:50%; background:rgba(255,50,50,0.5); border:3px solid rgba(255,100,100,0.8); color:white; font-size:35px; box-shadow:0 0 15px rgba(255,50,50,0.5);">⚔️</button>
-            <button id="btn-jump" style="position:absolute; bottom:110px; right:20px; width:60px; height:60px; border-radius:50%; background:rgba(50,200,50,0.5); border:2px solid rgba(100,255,100,0.8); color:white; font-size:20px;">🔼</button>
-            <button id="btn-ability" style="position:absolute; bottom:20px; right:110px; width:60px; height:60px; border-radius:50%; background:rgba(50,150,255,0.5); border:2px solid rgba(100,200,255,0.8); color:white; font-size:20px;">✨</button>
-            <button id="btn-ult" style="position:absolute; bottom:90px; right:90px; width:65px; height:65px; border-radius:50%; background:rgba(255,200,0,0.5); border:2px solid rgba(255,255,100,0.8); color:white; font-size:24px;">🔥</button>
+            <button id="btn-jump" style="position:absolute; bottom:0; right:0; width:85px; height:85px; border-radius:50%; background:rgba(50,200,50,0.5); border:3px solid rgba(100,255,100,0.8); color:white; font-size:35px; box-shadow:0 0 15px rgba(50,200,50,0.5);">🔼</button>
+            <button id="btn-ability" style="position:absolute; bottom:20px; right:110px; width:60px; height:60px; border-radius:50%; background:rgba(50,150,255,0.5); border:2px solid rgba(100,200,255,0.8); color:white; font-size:20px;">
+                🍞
+                <div id="ability-cd-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; background:rgba(0,0,0,0.7); color:white; font-weight:bold; font-size:24px; display:flex; align-items:center; justify-content:center;"></div>
+            </button>
         </div>
     </div>
 `;
@@ -59,14 +60,12 @@ document.body.insertAdjacentHTML('beforeend', localUiHTML);
 if (isMobile) {
     document.getElementById('local-ui').style.transform = 'scale(0.8)';
     document.getElementById('local-ui').style.transformOrigin = 'top left';
+    document.getElementById('lobby-settings').style.display = 'block';
 
     function checkOrientation() {
         const warning = document.getElementById('orientation-warning');
-        if (window.innerHeight > window.innerWidth) {
-            warning.style.display = 'flex';
-        } else {
-            warning.style.display = 'none';
-        }
+        if (window.innerHeight > window.innerWidth) warning.style.display = 'flex';
+        else warning.style.display = 'none';
     }
     window.addEventListener('resize', checkOrientation);
     checkOrientation(); 
@@ -133,10 +132,7 @@ const lobbyGroup = new THREE.Group();
 scene.add(lobbyGroup);
 
 const slots = [
-    { x: 0, z: 0 },      
-    { x: -2.5, z: 0.5 }, 
-    { x: 2.5, z: 0.5 },  
-    { x: 0, z: 2.5 }     
+    { x: 0, z: 0 }, { x: -2.5, z: 0.5 }, { x: 2.5, z: 0.5 }, { x: 0, z: 2.5 }     
 ];
 
 function createMinimalStage() {
@@ -170,6 +166,10 @@ gameGround.receiveShadow = true;
 gameGroup.add(gameGround);
 gameGroup.add(new THREE.GridHelper(200, 200));
 
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
 const gameState = { mode: 'LOBBY', isCharSelected: false, isReady: false, isHost: false };
 let isPreviewing = false;
 
@@ -184,7 +184,10 @@ const playersRef = roomRef.child('players');
 const myPlayerRef = playersRef.push();
 const myPlayerKey = myPlayerRef.key; 
 
-myPlayerRef.set({ name: username, ready: false, character: null, x: 0, z: 0, ry: 0, anim: 'Idle', hp: 3200, isDead: false });
+// Передаем в Toaster.js доступ к сети, чтобы он сам обсчитывал способности
+player.setGameContext(remotePlayers, playersRef);
+
+myPlayerRef.set({ name: username, ready: false, character: null, x: 0, y: 0, z: 0, ry: 0, anim: 'Idle', hp: 3200, isDead: false });
 myPlayerRef.onDisconnect().remove();
 
 function updateLobbyPositions() {
@@ -221,8 +224,6 @@ playersRef.on('child_changed', (snap) => {
         if (data.hp !== undefined && data.hp !== player.hp) {
             player.setHp(data.hp);
             updateLocalUI(player.hp, player.maxHp);
-            
-            // Если игрок только что умер - сообщаем в Firebase, чтобы обновились другие клиенты
             if (player.isDead) {
                 myPlayerRef.update({ isDead: true });
                 document.getElementById('local-hp-text').innerText = "ПОГИБ";
@@ -287,11 +288,10 @@ function startGame() {
     gameGroup.visible = true;
     document.getElementById('ui-layer').style.display = 'none';
     
+    document.getElementById('lobby-settings').style.display = 'none';
     document.getElementById('local-ui').style.display = 'flex';
     
-    if (isMobile) {
-        document.getElementById('mobile-hud').style.display = 'block';
-    }
+    if (isMobile) document.getElementById('mobile-hud').style.display = 'block';
     
     if(player.mesh) {
         player.mesh.position.set(0, 0, 0); 
@@ -299,41 +299,19 @@ function startGame() {
     }
 }
 
-function checkHit() {
-    const attackRange = 2.0; 
-    const attackAngle = Math.PI / 2.5; 
-    const damage = 450;      
-    const myPos = player.getPosition();
-
-    const forwardX = Math.sin(player.mesh.rotation.y);
-    const forwardZ = Math.cos(player.mesh.rotation.y);
-    const forward = new THREE.Vector3(forwardX, 0, forwardZ).normalize();
-
-    Object.keys(remotePlayers).forEach(key => {
-        const rp = remotePlayers[key];
-        if (rp.isDead || rp.isHologram) return; 
-
-        const dist = myPos.distanceTo(rp.targetPos);
-        if (dist <= attackRange) {
-            const dirToTarget = new THREE.Vector3().subVectors(rp.targetPos, myPos);
-            dirToTarget.y = 0; 
-            dirToTarget.normalize();
-            if (forward.angleTo(dirToTarget) <= attackAngle) {
-                playersRef.child(key).update({ hp: Math.max(0, rp.hp - damage) });
-            }
-        }
-    });
-}
-
 const inputs = { forward: false, backward: false, left: false, right: false, joystick: { angle: 0, active: false } };
 const emptyInputs = { forward: false, backward: false, left: false, right: false, joystick: { angle: 0, active: false } };
 
+// --- УПРАВЛЕНИЕ ПК ---
 document.addEventListener('keydown', (e) => {
     if(gameState.mode === 'LOBBY' || player.isDead) return;
     if(e.code === 'KeyW') inputs.forward = true;
     if(e.code === 'KeyS') inputs.backward = true;
     if(e.code === 'KeyA') inputs.left = true;
     if(e.code === 'KeyD') inputs.right = true;
+    
+    // Прыжок на ПК перенесен на Пробел
+    if(e.code === 'Space') player.jump();
 });
 document.addEventListener('keyup', (e) => {
     if(e.code === 'KeyW') inputs.forward = false;
@@ -342,19 +320,40 @@ document.addEventListener('keyup', (e) => {
     if(e.code === 'KeyD') inputs.right = false;
 });
 
-document.addEventListener('click', (e) => {
-    if (gameState.mode === 'GAME' && player.mesh && !player.isDead) {
-        if (e.target.closest('#local-ui') || e.target.closest('#mobile-hud') || e.target.closest('#joystick-zone') || e.target.closest('#touch-rotate-zone') || e.target.closest('#exit-btn')) return;
-        if (player.attack()) setTimeout(checkHit, 300); 
-    }
+// Отключаем системное меню правой кнопки мыши
+window.addEventListener('contextmenu', e => e.preventDefault());
+
+// Прицеливание ПК (Зажатие ПКМ)
+document.addEventListener('mousedown', (e) => {
+    if (gameState.mode !== 'GAME' || player.isDead || isMobile) return;
+    if (e.button === 2) player.startAiming();
 });
 
-let cameraAngleY = 0; let cameraAngleX = 0.05; let isMouseDown = false;
-document.addEventListener('mousedown', () => isMouseDown = true);
-document.addEventListener('mouseup', () => isMouseDown = false);
+document.addEventListener('mouseup', (e) => {
+    if (e.button === 2) player.stopAimingAndFire();
+});
+
+let cameraAngleY = 0; let cameraAngleX = 0.05; 
 document.addEventListener('mousemove', (e) => {
-    if(isPreviewing) return;
-    if (isMouseDown) {
+    // В режиме игры обновляем прицел
+    if (gameState.mode === 'GAME' && player.isAiming && !isMobile) {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        
+        const intersectPoint = new THREE.Vector3();
+        raycaster.ray.intersectPlane(groundPlane, intersectPoint);
+        
+        const myPos = player.getPosition();
+        let dist = intersectPoint.distanceTo(myPos);
+        // Максимальная дальность броска
+        if (dist > 15) {
+            intersectPoint.sub(myPos).normalize().multiplyScalar(15).add(myPos);
+        }
+        player.updateAiming(intersectPoint);
+    } 
+    // Вращение камеры
+    else if (!isPreviewing && (e.buttons === 1 || e.buttons === 4)) {
         cameraAngleY -= e.movementX * 0.005;
         cameraAngleX -= e.movementY * 0.005;
         cameraAngleX = Math.max(-0.6, Math.min(0.6, cameraAngleX));
@@ -363,6 +362,8 @@ document.addEventListener('mousemove', (e) => {
 
 const clock = new THREE.Clock();
 const gameCamDist = 2.3; const gameCamHeight = 2.0;
+let lastNetUpdate = 0;
+let lastNetData = {};
 
 function animate() {
     requestAnimationFrame(animate);
@@ -373,10 +374,19 @@ function animate() {
     if (player.mesh || player.hologramGroup) {
         if (gameState.mode === 'GAME') {
             player.update(dt, inputs, cameraAngleY);
+            
             if (!player.isDead) {
-                const netData = player.getNetworkData();
-                if (netData) myPlayerRef.update(netData);
+                const now = Date.now();
+                if (now - lastNetUpdate > 100) { 
+                    const netData = player.getNetworkData();
+                    if (netData && (netData.x !== lastNetData.x || netData.y !== lastNetData.y || netData.z !== lastNetData.z || netData.ry !== lastNetData.ry || netData.anim !== lastNetData.anim)) {
+                        myPlayerRef.update(netData);
+                        lastNetData = {...netData};
+                        lastNetUpdate = now;
+                    }
+                }
             }
+
             const playerPos = player.getPosition();
             let currentCamDist = player.isDead ? 4.0 : gameCamDist;
             let currentCamHeight = player.isDead ? 3.5 : gameCamHeight;
@@ -401,23 +411,53 @@ function animate() {
     renderer.render(scene, camera);
 }
 
+// --- УПРАВЛЕНИЕ МОБИЛЬНЫХ ---
 if (isMobile) {
     const manager = nipplejs.create({ zone: document.getElementById('joystick-zone'), mode: 'static', position: { left: '50%', top: '50%' }, color: 'white', size: 100 });
     manager.on('move', (evt, data) => { inputs.joystick.active = true; inputs.joystick.angle = data.angle.radian; });
     manager.on('end', () => inputs.joystick.active = false);
     
-    const addBtnEvent = (id, action) => {
-        const btn = document.getElementById(id);
-        if (btn) btn.addEventListener('touchstart', (e) => { 
-            e.preventDefault(); e.stopPropagation(); 
-            action(); 
-        });
-    };
+    document.getElementById('btn-jump').addEventListener('touchstart', (e) => { 
+        e.preventDefault(); e.stopPropagation(); 
+        player.jump(); 
+    });
 
-    addBtnEvent('btn-attack', () => { if (player.attack()) setTimeout(checkHit, 300); });
-    addBtnEvent('btn-jump', () => player.jump());
-    addBtnEvent('btn-ability', () => player.useAbility());
-    addBtnEvent('btn-ult', () => player.useUltimate());
+    // Стик Способности (Прицеливание)
+    let mobileAimStart = {x: 0, y: 0};
+    const btnAbility = document.getElementById('btn-ability');
+    
+    btnAbility.addEventListener('touchstart', e => {
+        e.preventDefault(); e.stopPropagation();
+        player.startAiming();
+        const rect = btnAbility.getBoundingClientRect();
+        mobileAimStart = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        player.updateAiming(player.getPosition());
+    });
+    
+    btnAbility.addEventListener('touchmove', e => {
+        if (!player.isAiming) return;
+        e.preventDefault(); e.stopPropagation();
+        const touch = e.changedTouches[0];
+        const dx = touch.clientX - mobileAimStart.x;
+        const dy = touch.clientY - mobileAimStart.y;
+        
+        const distScreen = Math.min(Math.sqrt(dx * dx + dy * dy), 60);
+        const distWorld = (distScreen / 60) * 15; // Максимальная дальность броска
+        const angleScreen = Math.atan2(dy, dx);
+        const angleWorld = angleScreen + cameraAngleY + Math.PI / 2;
+        
+        const myPos = player.getPosition();
+        player.updateAiming(new THREE.Vector3(
+            myPos.x + Math.cos(angleWorld) * distWorld,
+            0,
+            myPos.z + Math.sin(angleWorld) * distWorld
+        ));
+    });
+
+    btnAbility.addEventListener('touchend', e => {
+        e.preventDefault(); e.stopPropagation();
+        player.stopAimingAndFire();
+    });
 
     document.getElementById('btn-settings').addEventListener('touchstart', (e) => {
         e.preventDefault(); e.stopPropagation();
@@ -433,9 +473,7 @@ if (isMobile) {
     });
     
     const touchZone = document.getElementById('touch-rotate-zone'); let lastX;
-    touchZone.addEventListener('touchstart', e => { 
-        lastX = e.touches[0].clientX; 
-    });
+    touchZone.addEventListener('touchstart', e => { lastX = e.touches[0].clientX; });
     touchZone.addEventListener('touchmove', e => { 
         if(isPreviewing) return; 
         e.preventDefault(); 
