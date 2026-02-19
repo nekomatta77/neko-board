@@ -1,0 +1,35 @@
+/* --- iPhone (iOS) Specific Styles --- */
+body {
+    /* Защита от свайпов и выделения */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    /* Учет безопасных зон (чёлка, нижняя полоса) */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+}
+
+#mobile-controls {
+    /* Поднимаем выше из-за полосы "Домой" */
+    bottom: 40px; 
+    padding: 0 30px;
+}
+
+/* Стеклянный эффект лучше работает на iOS (Webkit) */
+.control-btn {
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+/* Кнопка выхода подальше от углов закругления */
+#exit-btn {
+    top: max(25px, env(safe-area-inset-top));
+    right: max(25px, env(safe-area-inset-right));
+}
+
+#joystick-zone {
+    bottom: 50px; /* Выше из-за Safe Area */
+    left: 40px;
+}

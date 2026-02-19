@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>NEKO Brawl 3D</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,6 +11,24 @@
 
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="css/lobby.css">
+    
+    <script>
+        const ua = navigator.userAgent.toLowerCase();
+        const head = document.getElementsByTagName('head')[0];
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+
+        if (ua.indexOf('iphone') > -1 || ua.indexOf('ipad') > -1) {
+            link.href = 'css/iphone.css';
+            head.appendChild(link);
+            console.log('Applied iPhone styles');
+        } else if (ua.indexOf('android') > -1) {
+            link.href = 'css/android.css';
+            head.appendChild(link);
+            console.log('Applied Android styles');
+        }
+    </script>
     
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -28,7 +46,7 @@
 
     <div id="loader">
         <div class="spinner"></div>
-        <div id="loader-text">Загрузка игры...</div>
+        <div id="loader-text">Загрузка ресурсов...</div>
     </div>
 
     <div id="joystick-zone"></div>

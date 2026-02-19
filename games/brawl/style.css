@@ -1,4 +1,6 @@
-/* Базовые настройки */
+/* --- games/brawl/style.css --- */
+
+/* 1. Базовые настройки */
 body, html {
     margin: 0;
     padding: 0;
@@ -6,187 +8,144 @@ body, html {
     height: 100%;
     overflow: hidden;
     background-color: #000;
-    font-family: sans-serif;
+    font-family: 'Montserrat', sans-serif;
     user-select: none;
     -webkit-user-select: none;
-    touch-action: none; /* Важно для мобильных игр */
+    touch-action: none;
 }
 
-/* Контейнер игры - самый нижний слой */
+/* 2. Контейнер игры (Canvas) */
 #game-container {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    top: 0; left: 0; width: 100vw; height: 100vh;
     z-index: 1;
-    background: #000; /* Чтобы не было белых вспышек */
+    background: #000;
 }
 
-/* Убеждаемся, что canvas внутри растянут */
 #game-container canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
+    display: block; width: 100%; height: 100%;
 }
 
-/* Интерфейс поверх игры */
+/* 3. Слой интерфейса */
 #ui-layer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     z-index: 10;
-    pointer-events: none; /* Пропускаем клики сквозь пустые места */
+    pointer-events: none; /* Клики проходят сквозь пустые места */
+    background: transparent !important;
 }
 
-/* Элементы UI, которые должны быть кликабельны */
-#health-bars, #mobile-controls, .ui-btn {
+/* Элементы внутри UI должны быть кликабельны */
+#health-bars, #mobile-controls, .ui-btn, .smoke-btn-container, .hero-grid-overlay, .hero-selection-overlay, #ready-btn {
     pointer-events: auto;
 }
 
-#btn-fullscreen {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: rgba(0,0,0,0.5);
-    border: 1px solid white;
+/* --- 4. КНОПКА ВЫХОДА (КРЕСТИК) --- */
+#exit-btn {
+    position: fixed;
+    top: 25px;
+    right: 25px;
+    z-index: 2000;
+
+    appearance: none; border: none; outline: none;
+    
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+
     color: white;
-    width: 40px;
-    height: 40px;
-    border-radius: 5px;
     font-size: 20px;
-    display: none; /* Покажем только на мобильных */
+    font-weight: bold;
+    
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-/* СТАРТОВЫЙ ЭКРАН */
+#exit-btn:hover {
+    background: #ff4757;
+    transform: rotate(90deg) scale(1.1);
+    box-shadow: 0 0 20px rgba(255, 71, 87, 0.6);
+    border-color: transparent;
+}
+
+#exit-btn:active { transform: rotate(90deg) scale(0.9); }
+
+
+/* --- 5. ИНСТРУКЦИИ (СКРЫТЫ) --- */
+#pc-instructions {
+    display: none !important; /* Убираем текст с экрана */
+}
+
+/* --- 6. Остальные элементы --- */
+#btn-fullscreen {
+    position: absolute; top: 25px; left: 25px; z-index: 2000;
+    width: 45px; height: 45px; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.15);
+    color: white; font-size: 18px;
+    display: none; align-items: center; justify-content: center; cursor: pointer;
+}
+
 #start-screen {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(0, 0, 0, 0.95);
     z-index: 9999;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    display: flex; justify-content: center; align-items: center;
     transition: opacity 0.5s;
 }
-
-.start-content {
-    text-align: center;
-    color: white;
-}
-
+.start-content { text-align: center; color: white; }
 #btn-start {
-    background: #ff4757;
-    color: white;
-    border: none;
-    padding: 15px 40px;
-    font-size: 24px;
-    border-radius: 30px;
-    margin-top: 20px;
-    cursor: pointer;
+    background: #ff4757; color: white; border: none;
+    padding: 15px 40px; font-size: 24px; border-radius: 30px;
+    margin-top: 20px; cursor: pointer;
     box-shadow: 0 0 20px rgba(255, 71, 87, 0.6);
+    transition: transform 0.2s;
 }
+#btn-start:active { transform: scale(0.95); }
 
-/* МОБИЛЬНОЕ УПРАВЛЕНИЕ */
 #mobile-controls {
-    display: none; /* Скрыто на ПК */
-    position: absolute;
-    bottom: 20px;
-    width: 100%;
-    height: 140px;
-    padding: 0 40px;
-    box-sizing: border-box;
-    justify-content: space-between;
-    align-items: center;
+    display: none; position: absolute; bottom: 30px; width: 100%; height: 140px;
+    padding: 0 40px; box-sizing: border-box;
+    justify-content: space-between; align-items: center; z-index: 100;
 }
-
-.control-group {
-    display: flex;
-    gap: 20px;
-}
-
-/* Джойстик */
-#joystick-area {
-    width: 100px;
-    height: 100px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    position: relative;
-}
-
-#joystick-knob {
-    width: 40px;
-    height: 40px;
-    background: white;
-    border-radius: 50%;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
-
-/* Кнопки */
+.control-group { display: flex; gap: 20px; }
+#joystick-zone { position: absolute; bottom: 40px; left: 40px; width: 120px; height: 120px; z-index: 101; }
 .control-btn {
-    width: 70px;
-    height: 70px;
-    border-radius: 50%;
-    border: none;
-    font-size: 24px;
-    color: white;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    width: 70px; height: 70px; border-radius: 50%; border: none;
+    font-size: 24px; color: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3); backdrop-filter: blur(5px);
+    display: flex; align-items: center; justify-content: center;
 }
+.control-btn:active { transform: scale(0.9); }
+#btn-attack { background: rgba(255, 107, 107, 0.6); border: 2px solid #ff6b6b; width: 80px; height: 80px; }
+#btn-jump { background: rgba(72, 219, 251, 0.6); border: 2px solid #48dbfb; }
 
-#btn-attack { background: #ff6b6b; }
-#btn-jump { background: #48dbfb; }
-
-/* ЭКРАН ПОВОРОТА */
-#orientation-warning {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: #1e1e1e;
-    z-index: 10000;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    color: white;
-    text-align: center;
-}
-
-.phone-icon {
-    width: 50px;
-    height: 90px;
-    border: 3px solid white;
-    border-radius: 8px;
-    animation: rotate 2s infinite;
-    margin-bottom: 20px;
-}
-
-@keyframes rotate {
-    0% { transform: rotate(0deg); }
-    50% { transform: rotate(-90deg); }
-    100% { transform: rotate(-90deg); }
-}
-
-/* МЕДИА-ЗАПРОСЫ */
-
-/* Если мобильный вертикально -> просим повернуть */
 @media screen and (max-width: 900px) and (orientation: portrait) {
     #orientation-warning { display: flex; }
     #start-screen, #game-container, #ui-layer { display: none !important; }
 }
-
-/* Если мобильный горизонтально -> показываем управление и кнопку фуллскрина */
 @media screen and (max-width: 900px) and (orientation: landscape) and (hover: none) {
     #mobile-controls { display: flex; }
-    #btn-fullscreen { display: block; }
+    #btn-fullscreen { display: flex; }
+}
+
+#orientation-warning {
+    display: none; position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%; background: #1e1e1e;
+    z-index: 10000; flex-direction: column;
+    justify-content: center; align-items: center; color: white; text-align: center;
+}
+.phone-icon {
+    width: 50px; height: 90px; border: 3px solid white;
+    border-radius: 8px; animation: rotate 2s infinite; margin-bottom: 20px;
+}
+@keyframes rotate {
+    0% { transform: rotate(0deg); }
+    50% { transform: rotate(-90deg); }
+    100% { transform: rotate(-90deg); }
 }

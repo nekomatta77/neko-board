@@ -1,0 +1,27 @@
+/* --- Android Specific Styles --- */
+body {
+    /* На Android иногда видна адресная строка */
+    height: 100vh;
+    height: -webkit-fill-available;
+}
+
+#mobile-controls {
+    bottom: 20px; /* Чуть ниже, чем на iPhone */
+    padding: 0 20px;
+}
+
+/* Кнопки действий чуть больше для удобства */
+.control-btn {
+    width: 75px;
+    height: 75px;
+}
+
+#joystick-zone {
+    bottom: 30px;
+    left: 30px;
+}
+
+/* Скрываем фуллскрин кнопку, если Android уже в режиме "почти фуллскрин" */
+@media all and (display-mode: fullscreen) {
+    #btn-fullscreen { display: none !important; }
+}
