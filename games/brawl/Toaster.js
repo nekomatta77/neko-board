@@ -7,10 +7,11 @@ export class Toaster {
         this.currentAction = null;
         this.activeActionName = ''; 
         
-        // Базовая скорость
-        this.moveSpeed = 1.2; // Изменили логику, теперь умножаем на dt, поэтому значение больше
-        this.runAnimSpeed = 1;
+        // --- ЗАДАННЫЕ НАСТРОЙКИ СКОРОСТИ ---
+        this.moveSpeed = 0.1; 
+        this.runAnimSpeed = 1.00;
         this.modelScale = 0.018; 
+        // ------------------------------------
         
         this.maxHp = 3200;
         this.hp = 3200;
@@ -180,7 +181,6 @@ export class Toaster {
         this.aimCircle.position.set(this.aimTarget.x, 0.05, this.aimTarget.z);
     }
 
-    // НОВАЯ ФУНКЦИЯ (отмена прицеливания)
     cancelAiming() {
         if (!this.isAiming) return;
         this.isAiming = false;
@@ -372,14 +372,13 @@ export class Toaster {
             const inputX = dx * Math.cos(angleOffset) - dz * Math.sin(angleOffset);
             const inputZ = dx * Math.sin(angleOffset) + dz * Math.cos(angleOffset);
 
-            // ИДЕАЛЬНАЯ СИНХРОНИЗАЦИЯ СКОРОСТИ
-            // 1. Нормализуем вектор (чтобы по диагонали скорость была такой же, как по прямой)
+            // --- НОРМАЛИЗАЦИЯ И СИНХРОНИЗАЦИЯ СКОРОСТИ ---
             const len = Math.sqrt(inputX * inputX + inputZ * inputZ);
             const normLen = Math.min(len, 1);
-            const realX = (inputX / len) * normLen;
-            const realZ = (inputZ / len) * normLen;
+            const realX = len > 0 ? (inputX / len) * normLen : 0;
+            const realZ = len > 0 ? (inputZ / len) * normLen : 0;
 
-            // 2. Умножаем на dt * 60 (чтобы на низком FPS скорость компенсировалась)
+            // Умножаем базовую скорость (0.02) на множитель кадров (dt * 60)
             const speedMultiplier = this.moveSpeed * (dt * 60);
 
             this.mesh.position.x += realX * speedMultiplier;

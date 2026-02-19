@@ -45,16 +45,31 @@ const localUiHTML = `
         </div>
     </div>
 
+    <div id="touch-rotate-zone" style="display:none; position:absolute; top:0; right:0; width:50%; height:100%; z-index:5; pointer-events:auto; touch-action:none;"></div>
+
     <div id="mobile-hud" style="display:none; position:absolute; inset:0; pointer-events:none; z-index:200;">
-        <div id="action-buttons" style="position:absolute; bottom:30px; right:30px; width:180px; height:180px; opacity:0.7; pointer-events:auto; transition: opacity 0.2s;">
-            <button id="btn-jump" style="position:absolute; bottom:0; right:0; width:85px; height:85px; border-radius:50%; background:rgba(50,200,50,0.5); border:3px solid rgba(100,255,100,0.8); color:white; font-size:35px; box-shadow:0 0 15px rgba(50,200,50,0.5);">🔼</button>
+        <div id="action-buttons" style="position:absolute; bottom:30px; right:30px; width:180px; height:180px; opacity:0.8; pointer-events:auto; transition: opacity 0.2s;">
             
-            <button id="btn-ability" style="position:absolute; bottom:15px; right:110px; width:75px; height:75px; border-radius:50%; background:rgba(50,150,255,0.3); border:2px solid rgba(100,200,255,0.8); color:white; font-size:24px; display:flex; align-items:center; justify-content:center; outline:none; -webkit-tap-highlight-color:transparent;">
-                <div id="ability-thumb" style="width:28px; height:28px; background:rgba(255,255,255,0.8); border-radius:50%; box-shadow:0 2px 5px rgba(0,0,0,0.5); position:absolute; pointer-events:none; transition: transform 0.15s ease-out;"></div>
-                <span style="position:absolute; pointer-events:none; text-shadow: 1px 1px 2px black;">🍞</span>
+            <button id="btn-jump" style="position:absolute; bottom:0; right:0; width:85px; height:85px; border-radius:50%; background:rgba(50,200,50,0.4); border:3px solid rgba(100,255,100,0.8); color:white; display:flex; align-items:center; justify-content:center; box-shadow:0 0 15px rgba(50,200,50,0.5); outline:none; -webkit-tap-highlight-color:transparent;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:40px; height:40px;">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+            </button>
+            
+            <button id="btn-ability" style="position:absolute; bottom:15px; right:110px; width:75px; height:75px; border-radius:50%; background:rgba(50,150,255,0.3); border:2px solid rgba(100,200,255,0.8); color:white; display:flex; align-items:center; justify-content:center; outline:none; -webkit-tap-highlight-color:transparent;">
+                <div id="ability-thumb" style="width:30px; height:30px; background:rgba(255,255,255,0.95); border-radius:50%; box-shadow:0 2px 8px rgba(0,0,0,0.5); position:absolute; pointer-events:none; transition: transform 0.15s ease-out; display:flex; align-items:center; justify-content:center;">
+                    <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px; height:18px; color:#111;">
+                        <path d="M12 2L15 9l7 3-7 3-3 7-3-7-7-3 7-3z"/>
+                    </svg>
+                </div>
                 <div id="ability-cd-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; background:rgba(0,0,0,0.7); color:white; font-weight:bold; font-size:24px; align-items:center; justify-content:center;"></div>
             </button>
-            <button id="btn-ult" style="position:absolute; bottom:95px; right:85px; width:65px; height:65px; border-radius:50%; background:rgba(255,200,0,0.5); border:2px solid rgba(255,255,100,0.8); color:white; font-size:24px;">🔥</button>
+
+            <button id="btn-ult" style="position:absolute; bottom:95px; right:85px; width:65px; height:65px; border-radius:50%; background:rgba(255,100,0,0.4); border:2px solid rgba(255,150,50,0.8); color:white; display:flex; align-items:center; justify-content:center; outline:none; -webkit-tap-highlight-color:transparent;">
+                <svg viewBox="0 0 24 24" fill="currentColor" style="width:32px; height:32px;">
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.87-3.13-7-7-7zm-1.5 9c-.83 0-1.5-.67-1.5-1.5S9.67 8 10.5 8s1.5.67 1.5 1.5S11.33 11 10.5 11zm3 0c-.83 0-1.5-.67-1.5-1.5S12.67 8 13.5 8s1.5.67 1.5 1.5S14.33 11 13.5 11zm-1.5 4.5h-2v2h2v-2z"/>
+                </svg>
+            </button>
         </div>
     </div>
 `;
@@ -285,7 +300,10 @@ function startGame() {
     document.getElementById('lobby-settings').style.display = 'none';
     document.getElementById('local-ui').style.display = 'flex';
     
-    if (isMobile) document.getElementById('mobile-hud').style.display = 'block';
+    if (isMobile) {
+        document.getElementById('mobile-hud').style.display = 'block';
+        document.getElementById('touch-rotate-zone').style.display = 'block'; // Включаем зону свайпа!
+    }
     
     if(player.mesh) {
         player.mesh.position.set(0, 0, 0); 
@@ -426,7 +444,6 @@ if (isMobile) {
         const rect = btnAbility.getBoundingClientRect();
         mobileAimStart = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
         
-        // --- АВТОНАВЕДЕНИЕ (Поиск ближайшего врага) ---
         let closestEnemy = null;
         let minTargetDist = Infinity;
         const myPos = player.getPosition();
@@ -434,7 +451,7 @@ if (isMobile) {
         Object.values(remotePlayers).forEach(rp => {
             if (!rp.isDead && !rp.isHologram) {
                 const d = myPos.distanceTo(rp.targetPos);
-                if (d < minTargetDist && d < 20) { // Ищем в радиусе 20
+                if (d < minTargetDist && d < 20) { 
                     minTargetDist = d;
                     closestEnemy = rp;
                 }
@@ -447,13 +464,11 @@ if (isMobile) {
             const dz = closestEnemy.targetPos.z - myPos.z;
             angleWorld = Math.atan2(dz, dx);
         } else {
-            // Если врагов нет - целимся туда, куда смотрим
             const forwardX = Math.sin(player.mesh.rotation.y);
             const forwardZ = Math.cos(player.mesh.rotation.y);
             angleWorld = Math.atan2(forwardZ, forwardX);
         }
         
-        // Ставим прицел сразу на цель
         const distWorld = closestEnemy ? minTargetDist : 12; 
         player.updateAiming(new THREE.Vector3(
             myPos.x + Math.cos(angleWorld) * distWorld,
@@ -476,19 +491,21 @@ if (isMobile) {
         const distScreen = Math.sqrt(dx*dx + dy*dy);
         finalDragDist = distScreen;
         
-        if (distScreen > 10) didDragAbility = true; // Засчитываем как ручное прицеливание
+        if (distScreen > 10) didDragAbility = true; 
         
-        const maxDistScreen = 50; 
+        // Зона оттягивания увеличена (60px) для большей точности
+        const maxDistScreen = 60; 
+        let thumbDx = dx;
+        let thumbDy = dy;
         
         if (distScreen > maxDistScreen) {
-            dx = (dx / distScreen) * maxDistScreen;
-            dy = (dy / distScreen) * maxDistScreen;
+            thumbDx = (dx / distScreen) * maxDistScreen;
+            thumbDy = (dy / distScreen) * maxDistScreen;
         }
         
-        abilityThumb.style.transform = `translate(${dx}px, ${dy}px)`;
+        abilityThumb.style.transform = `translate(${thumbDx}px, ${thumbDy}px)`;
         
-        // Переписываем автонаведение ручным управлением
-        if (distScreen > 5) {
+        if (distScreen > 10) {
             const distWorld = (distScreen / maxDistScreen) * 15; 
             const angleScreen = Math.atan2(dy, dx);
             const angleWorld = angleScreen + cameraAngleY + Math.PI / 2;
@@ -509,8 +526,9 @@ if (isMobile) {
         abilityThumb.style.transition = 'transform 0.2s ease-out';
         abilityThumb.style.transform = `translate(0px, 0px)`;
         
-        // --- ОТМЕНА: Если игрок вернул стик в центр ---
-        if (didDragAbility && finalDragDist < 15) {
+        // --- ОТМЕНА СПОСОБНОСТИ ---
+        // Если игрок оттянул стик и вернул его в центр (< 20px) — способность отменяется!
+        if (didDragAbility && finalDragDist < 20) {
             player.cancelAiming();
         } else {
             player.stopAimingAndFire();
@@ -530,13 +548,17 @@ if (isMobile) {
         if (joystick) joystick.style.opacity = val; 
     });
     
-    const touchZone = document.getElementById('touch-rotate-zone'); let lastX;
-    touchZone.addEventListener('touchstart', e => { lastX = e.touches[0].clientX; });
+    // --- СВАЙП КАМЕРЫ НА ТЕЛЕФОНЕ ---
+    const touchZone = document.getElementById('touch-rotate-zone'); 
+    let lastX;
+    touchZone.addEventListener('touchstart', e => { 
+        lastX = e.touches[0].clientX; 
+    });
     touchZone.addEventListener('touchmove', e => { 
         if(isPreviewing) return; 
         e.preventDefault(); 
         const dx = e.touches[0].clientX - lastX; 
-        cameraAngleY -= dx * 0.01; 
+        cameraAngleY -= dx * 0.01; // Вращаем камеру
         lastX = e.touches[0].clientX; 
     });
 }
