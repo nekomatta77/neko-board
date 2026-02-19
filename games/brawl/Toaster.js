@@ -14,14 +14,11 @@ export class Toaster {
         this.maxHp = 3200;
         this.hp = 3200;
         this.isDead = false;
-        
         this.isHologram = true; 
         
-        // --- ФИЗИКА ПРЫЖКА ---
         this.isJumping = false; 
         this.jumpTime = 0;
 
-        // --- МЕХАНИКА СПОСОБНОСТЕЙ ---
         this.remotePlayers = null;
         this.playersRef = null;
         this.activeToasts = [];
@@ -29,7 +26,9 @@ export class Toaster {
         this.isAiming = false;
         this.aimTarget = new THREE.Vector3();
         
-        // Эстетичный прицел (путь из сфер)
+        // Сохраняем последний выстрел для отправки в сеть
+        this.latestFireTarget = null;
+        
         this.aimGroup = new THREE.Group();
         this.aimDots = [];
         for (let i = 0; i < 15; i++) {
@@ -40,6 +39,12 @@ export class Toaster {
             this.aimGroup.add(dot);
             this.aimDots.push(dot);
         }
+        this.aimCircle = new THREE.Mesh(
+            new THREE.RingGeometry(1.4, 1.5, 32),
+            new THREE.MeshBasicMaterial({ color: 0xff5500, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
+        );
+        this.aimCircle.rotation.x = -Math.PI / 2;
+        this.aimGroup.add(this.aimCircle);
         this.aimGroup.visible = false;
         this.scene.add(this.aimGroup);
 
@@ -51,7 +56,6 @@ export class Toaster {
         this.createHologram();
     }
 
-    // Инъекция ссылок на сеть из game.js
     setGameContext(remotePlayers, playersRef) {
         this.remotePlayers = remotePlayers;
         this.playersRef = playersRef;
@@ -59,15 +63,13 @@ export class Toaster {
 
     createHologram() {
         this.hologramGroup = new THREE.Group();
-        const geo1 = new THREE.OctahedronGeometry(0.5);
         const mat1 = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.8 });
-        this.crystal = new THREE.Mesh(geo1, mat1);
+        this.crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.5), mat1);
         this.crystal.position.y = 1;
         this.hologramGroup.add(this.crystal);
 
-        const geo2 = new THREE.TorusGeometry(0.8, 0.02, 16, 32);
         const mat2 = new THREE.MeshBasicMaterial({ color: 0x0088ff, transparent: true, opacity: 0.5 });
-        this.ring = new THREE.Mesh(geo2, mat2);
+        this.ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.02, 16, 32), mat2);
         this.ring.position.y = 1;
         this.ring.rotation.x = Math.PI / 2;
         this.hologramGroup.add(this.ring);
@@ -96,7 +98,6 @@ export class Toaster {
             this.mesh.rotation.y = Math.PI; 
             
             this.mixer = new THREE.AnimationMixer(this.mesh);
-            
             this.scene.add(this.mesh);
 
             this.loadAnim('Idle', 'idle.fbx', () => this.playAnim('Idle'));
@@ -110,8 +111,7 @@ export class Toaster {
                 action.loop = THREE.LoopOnce;
                 action.clampWhenFinished = true;
             });
-
-        }, undefined, (e) => console.error(e));
+        });
     }
 
     setHologram(value) {
@@ -135,7 +135,7 @@ export class Toaster {
 
     playAnim(name) {
         if (!this.animations[name]) return;
-        if (this.activeActionName === name && name !== 'Jump') return;
+        if (this.activeActionName === name) return; 
         if (this.isDead && name !== 'Die') return;
 
         const newAction = this.animations[name];
@@ -148,16 +148,14 @@ export class Toaster {
         this.activeActionName = name;
     }
 
-    // --- ФИЗИЧЕСКИЙ ПРЫЖОК ---
     jump() {
         if (this.isJumping || this.isDead) return false; 
         this.isJumping = true;
-        this.jumpTime = 0; // Сброс таймера физики
+        this.jumpTime = 0; 
         this.playAnim('Jump');
         return true; 
     }
 
-    // --- СИСТЕМА СПОСОБНОСТЕЙ "ГОРЯЧИЙ ТОСТ" ---
     startAiming() {
         if (this.isDead || Date.now() < this.abilityCooldown) return;
         this.isAiming = true;
@@ -169,21 +167,17 @@ export class Toaster {
         this.aimTarget.copy(targetPoint);
         
         const start = this.getHeadPosition();
-        const T = 0.6; // Время полета
-        const g = 40;  // Гравитация
+        const T = 0.6; 
+        const g = 40;  
         const vY = ((this.aimTarget.y - start.y) + 0.5 * g * T * T) / T;
         const vX = (this.aimTarget.x - start.x) / T;
         const vZ = (this.aimTarget.z - start.z) / T;
 
-        // Расставляем сферы по параболе
         for (let i = 0; i < this.aimDots.length; i++) {
             const t = (i / (this.aimDots.length - 1)) * T;
-            this.aimDots[i].position.set(
-                start.x + vX * t,
-                start.y + vY * t - 0.5 * g * t * t,
-                start.z + vZ * t
-            );
+            this.aimDots[i].position.set(start.x + vX * t, start.y + vY * t - 0.5 * g * t * t, start.z + vZ * t);
         }
+        this.aimCircle.position.set(this.aimTarget.x, 0.05, this.aimTarget.z);
     }
 
     stopAimingAndFire() {
@@ -194,8 +188,11 @@ export class Toaster {
     }
 
     fireToast(targetPos) {
-        this.playAnim('Jump'); // Небольшая отдача при выстреле
+        this.playAnim('Jump'); 
         
+        // Отправляем данные в сеть (в game.js)
+        this.latestFireTarget = { x: targetPos.x, y: targetPos.y, z: targetPos.z, id: Date.now() };
+
         const geometry = new THREE.BoxGeometry(0.5, 0.1, 0.5);
         const material = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0xaa3300, roughness: 0.4 });
         const toastMesh = new THREE.Mesh(geometry, material);
@@ -212,7 +209,7 @@ export class Toaster {
 
         this.activeToasts.push({ mesh: toastMesh, vx: vX, vy: vY, vz: vZ, g: gravity, timeAlive: 0 });
 
-        this.abilityCooldown = Date.now() + 4000; // КД 4 секунды
+        this.abilityCooldown = Date.now() + 4000; 
         
         const cdOverlay = document.getElementById('ability-cd-overlay');
         if (cdOverlay) {
@@ -232,37 +229,61 @@ export class Toaster {
     }
 
     createExplosion(pos) {
-        // Уменьшенный радиус сферы взрыва (1.6 вместо 2.5)
-        const geo = new THREE.SphereGeometry(1.6, 16, 16);
-        const mat = new THREE.MeshBasicMaterial({ color: 0xff3300, transparent: true, opacity: 0.8 });
-        const explosion = new THREE.Mesh(geo, mat);
-        explosion.position.copy(pos);
-        this.scene.add(explosion);
+        const expGroup = new THREE.Group();
+        expGroup.position.copy(pos);
+        this.scene.add(expGroup);
 
-        let scale = 0.1;
-        let opacity = 0.8;
+        const coreGeo = new THREE.SphereGeometry(0.5, 16, 16);
+        const coreMat = new THREE.MeshBasicMaterial({ color: 0xffff55, transparent: true, opacity: 1 });
+        const core = new THREE.Mesh(coreGeo, coreMat);
+        expGroup.add(core);
+
+        const ringGeo = new THREE.TorusGeometry(0.6, 0.1, 16, 32);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.9 });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = -Math.PI / 2;
+        expGroup.add(ring);
+
+        const particles = [];
+        const partMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+        for(let i=0; i<6; i++) {
+            const p = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.15), partMat);
+            p.userData = { vx: (Math.random() - 0.5) * 0.3, vy: Math.random() * 0.2 + 0.1, vz: (Math.random() - 0.5) * 0.3 };
+            expGroup.add(p);
+            particles.push(p);
+        }
+
+        let frame = 0;
         const animInterval = setInterval(() => {
-            scale += 0.3;
-            opacity -= 0.1;
-            explosion.scale.set(scale, scale, scale);
-            mat.opacity = opacity;
-            if (opacity <= 0) {
-                this.scene.remove(explosion);
+            frame++;
+            const coreScale = 1 + frame * 0.15;
+            core.scale.set(coreScale, coreScale, coreScale);
+            coreMat.opacity = 1 - (frame / 20);
+
+            const ringScale = 1 + frame * 0.2;
+            ring.scale.set(ringScale, ringScale, ringScale);
+            ringMat.opacity = 0.9 - (frame / 20);
+
+            particles.forEach(p => {
+                p.position.x += p.userData.vx; p.position.y += p.userData.vy; p.position.z += p.userData.vz;
+                p.rotation.x += 0.2;
+            });
+
+            if (frame >= 20) {
+                this.scene.remove(expGroup);
                 clearInterval(animInterval);
             }
-        }, 30);
+        }, 20);
     }
 
     applyDamageAndBurn(targetKey, targetPlayer) {
         if (targetPlayer.isDead || targetPlayer.isHologram || !this.playersRef) return;
         
-        // Моментальный урон 750
         let currentHp = Math.max(0, targetPlayer.hp - 750);
         this.playersRef.child(targetKey).child('hp').set(currentHp);
 
         if (currentHp <= 0) return;
 
-        // Поджог (3 раза по 250 урона)
         let ticks = 0;
         const burnInterval = setInterval(() => {
             if (ticks >= 3 || targetPlayer.isDead) {
@@ -274,7 +295,6 @@ export class Toaster {
             ticks++;
         }, 1000);
     }
-    // ----------------------------------------
 
     update(dt, inputs, cameraAngleY) {
         if (this.hologramGroup && this.isHologram) {
@@ -284,7 +304,6 @@ export class Toaster {
             this.ring.rotation.z -= dt * 0.5;
         }
 
-        // --- ОБНОВЛЕНИЕ СНАРЯДОВ (Внутри самого Тостера) ---
         for (let i = this.activeToasts.length - 1; i >= 0; i--) {
             const t = this.activeToasts[i];
             t.vy -= t.g * dt;
@@ -298,11 +317,10 @@ export class Toaster {
                 t.mesh.position.y = 0;
                 this.createExplosion(t.mesh.position);
                 
-                // Проверка урона (Уменьшенный радиус 2.3)
                 if (this.remotePlayers) {
                     Object.keys(this.remotePlayers).forEach(key => {
                         const rp = this.remotePlayers[key];
-                        if (rp.targetPos.distanceTo(t.mesh.position) <= 2.3) {
+                        if (rp.targetPos.distanceTo(t.mesh.position) <= 1.5) {
                             this.applyDamageAndBurn(key, rp);
                         }
                     });
@@ -315,27 +333,22 @@ export class Toaster {
         if (!this.mesh || !this.mixer) return;
         this.mixer.update(dt);
 
-        // --- ЛОГИКА ФИЗИЧЕСКОГО ПРЫЖКА ---
         if (this.isJumping) {
             this.jumpTime += dt;
-            let t = this.jumpTime / 0.8; // Анимация идет около 800мс
+            let t = this.jumpTime / 0.6; 
             if (t > 1) {
                 t = 1;
                 this.isJumping = false;
                 this.mesh.position.y = 0;
                 if (!this.isDead) this.playAnim('Idle');
             } else {
-                // Математическая парабола прыжка (высота 2.5)
-                this.mesh.position.y = 4 * 2.5 * t * (1 - t);
+                this.mesh.position.y = 4 * 2.0 * t * (1 - t);
             }
-        } else if (this.mesh.position.y !== 0) {
-            this.mesh.position.y = 0;
         }
 
         if (this.isDead) return;
 
         let dx = 0; let dz = 0;
-
         if (inputs.forward) dz = -1;
         if (inputs.backward) dz = 1;
         if (inputs.left) dx = -1;
@@ -380,10 +393,11 @@ export class Toaster {
         if (!this.mesh) return null;
         return {
             x: this.mesh.position.x,
-            y: this.mesh.position.y, // <-- ПЕРЕДАЕМ ВЫСОТУ ПРЫЖКА
+            // y убрали, чтобы не мешать локальной интерполяции прыжка врага
             z: this.mesh.position.z,
             ry: this.mesh.rotation.y,
-            anim: this.activeActionName
+            anim: this.activeActionName,
+            fireEvent: this.latestFireTarget // Передаем цель выстрела!
         };
     }
     

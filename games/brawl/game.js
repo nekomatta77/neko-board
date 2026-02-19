@@ -48,10 +48,13 @@ const localUiHTML = `
     <div id="mobile-hud" style="display:none; position:absolute; inset:0; pointer-events:none; z-index:200;">
         <div id="action-buttons" style="position:absolute; bottom:30px; right:30px; width:180px; height:180px; opacity:0.7; pointer-events:auto; transition: opacity 0.2s;">
             <button id="btn-jump" style="position:absolute; bottom:0; right:0; width:85px; height:85px; border-radius:50%; background:rgba(50,200,50,0.5); border:3px solid rgba(100,255,100,0.8); color:white; font-size:35px; box-shadow:0 0 15px rgba(50,200,50,0.5);">🔼</button>
-            <button id="btn-ability" style="position:absolute; bottom:20px; right:110px; width:60px; height:60px; border-radius:50%; background:rgba(50,150,255,0.5); border:2px solid rgba(100,200,255,0.8); color:white; font-size:20px;">
-                🍞
-                <div id="ability-cd-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; background:rgba(0,0,0,0.7); color:white; font-weight:bold; font-size:24px; display:flex; align-items:center; justify-content:center;"></div>
+            
+            <button id="btn-ability" style="position:absolute; bottom:20px; right:110px; width:60px; height:60px; border-radius:50%; background:rgba(50,150,255,0.3); border:2px solid rgba(100,200,255,0.8); color:white; font-size:20px; display:flex; align-items:center; justify-content:center; outline:none; -webkit-tap-highlight-color:transparent;">
+                <div id="ability-thumb" style="width:25px; height:25px; background:rgba(255,255,255,0.8); border-radius:50%; box-shadow:0 2px 5px rgba(0,0,0,0.5); position:absolute; pointer-events:none; transition: transform 0.15s ease-out;"></div>
+                <span style="position:absolute; pointer-events:none; text-shadow: 1px 1px 2px black;">🍞</span>
+                <div id="ability-cd-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; background:rgba(0,0,0,0.7); color:white; font-weight:bold; font-size:24px; align-items:center; justify-content:center;"></div>
             </button>
+            <button id="btn-ult" style="position:absolute; bottom:90px; right:90px; width:65px; height:65px; border-radius:50%; background:rgba(255,200,0,0.5); border:2px solid rgba(255,255,100,0.8); color:white; font-size:24px;">🔥</button>
         </div>
     </div>
 `;
@@ -78,7 +81,6 @@ function updateLocalUI(current, max) {
         const percent = Math.max(0, (current / max) * 100);
         bar.style.width = percent + '%';
         text.innerText = `${Math.max(0, current)} / ${max}`;
-        
         if (percent < 30) {
             bar.style.background = 'linear-gradient(90deg, #ff0055, #ff3333)';
             bar.style.boxShadow = '0 0 8px rgba(255,0,85,0.6)';
@@ -131,24 +133,16 @@ scene.add(dirLight);
 const lobbyGroup = new THREE.Group();
 scene.add(lobbyGroup);
 
-const slots = [
-    { x: 0, z: 0 }, { x: -2.5, z: 0.5 }, { x: 2.5, z: 0.5 }, { x: 0, z: 2.5 }     
-];
+const slots = [{ x: 0, z: 0 }, { x: -2.5, z: 0.5 }, { x: 2.5, z: 0.5 }, { x: 0, z: 2.5 }];
 
 function createMinimalStage() {
-    const base = new THREE.Mesh(
-        new THREE.CylinderGeometry(8, 9, 0.5, 64),
-        new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.8 })
-    );
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(8, 9, 0.5, 64), new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.8 }));
     base.position.y = -0.25;
     base.receiveShadow = true;
     lobbyGroup.add(base);
 
     slots.forEach((slot) => {
-        const marker = new THREE.Mesh(
-            new THREE.CircleGeometry(0.8, 32),
-            new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.5 })
-        );
+        const marker = new THREE.Mesh(new THREE.CircleGeometry(0.8, 32), new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.5 }));
         marker.rotation.x = -Math.PI / 2;
         marker.position.set(slot.x, 0.01, slot.z);
         lobbyGroup.add(marker);
@@ -184,10 +178,9 @@ const playersRef = roomRef.child('players');
 const myPlayerRef = playersRef.push();
 const myPlayerKey = myPlayerRef.key; 
 
-// Передаем в Toaster.js доступ к сети, чтобы он сам обсчитывал способности
 player.setGameContext(remotePlayers, playersRef);
 
-myPlayerRef.set({ name: username, ready: false, character: null, x: 0, y: 0, z: 0, ry: 0, anim: 'Idle', hp: 3200, isDead: false });
+myPlayerRef.set({ name: username, ready: false, character: null, x: 0, z: 0, ry: 0, anim: 'Idle', hp: 3200, isDead: false });
 myPlayerRef.onDisconnect().remove();
 
 function updateLobbyPositions() {
@@ -302,7 +295,6 @@ function startGame() {
 const inputs = { forward: false, backward: false, left: false, right: false, joystick: { angle: 0, active: false } };
 const emptyInputs = { forward: false, backward: false, left: false, right: false, joystick: { angle: 0, active: false } };
 
-// --- УПРАВЛЕНИЕ ПК ---
 document.addEventListener('keydown', (e) => {
     if(gameState.mode === 'LOBBY' || player.isDead) return;
     if(e.code === 'KeyW') inputs.forward = true;
@@ -310,7 +302,6 @@ document.addEventListener('keydown', (e) => {
     if(e.code === 'KeyA') inputs.left = true;
     if(e.code === 'KeyD') inputs.right = true;
     
-    // Прыжок на ПК перенесен на Пробел
     if(e.code === 'Space') player.jump();
 });
 document.addEventListener('keyup', (e) => {
@@ -320,10 +311,8 @@ document.addEventListener('keyup', (e) => {
     if(e.code === 'KeyD') inputs.right = false;
 });
 
-// Отключаем системное меню правой кнопки мыши
 window.addEventListener('contextmenu', e => e.preventDefault());
 
-// Прицеливание ПК (Зажатие ПКМ)
 document.addEventListener('mousedown', (e) => {
     if (gameState.mode !== 'GAME' || player.isDead || isMobile) return;
     if (e.button === 2) player.startAiming();
@@ -335,24 +324,18 @@ document.addEventListener('mouseup', (e) => {
 
 let cameraAngleY = 0; let cameraAngleX = 0.05; 
 document.addEventListener('mousemove', (e) => {
-    // В режиме игры обновляем прицел
     if (gameState.mode === 'GAME' && player.isAiming && !isMobile) {
         mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
         raycaster.setFromCamera(mouse, camera);
-        
         const intersectPoint = new THREE.Vector3();
         raycaster.ray.intersectPlane(groundPlane, intersectPoint);
-        
         const myPos = player.getPosition();
-        let dist = intersectPoint.distanceTo(myPos);
-        // Максимальная дальность броска
-        if (dist > 15) {
+        if (intersectPoint.distanceTo(myPos) > 15) {
             intersectPoint.sub(myPos).normalize().multiplyScalar(15).add(myPos);
         }
         player.updateAiming(intersectPoint);
     } 
-    // Вращение камеры
     else if (!isPreviewing && (e.buttons === 1 || e.buttons === 4)) {
         cameraAngleY -= e.movementX * 0.005;
         cameraAngleX -= e.movementY * 0.005;
@@ -377,9 +360,13 @@ function animate() {
             
             if (!player.isDead) {
                 const now = Date.now();
-                if (now - lastNetUpdate > 100) { 
-                    const netData = player.getNetworkData();
-                    if (netData && (netData.x !== lastNetData.x || netData.y !== lastNetData.y || netData.z !== lastNetData.z || netData.ry !== lastNetData.ry || netData.anim !== lastNetData.anim)) {
+                const netData = player.getNetworkData();
+                
+                // МГНОВЕННАЯ ОТПРАВКА, ЕСЛИ БЫЛ ВЫСТРЕЛ ИЛИ ПРЫЖОК
+                const firedNow = netData.fireEvent && netData.fireEvent.id !== lastNetData.fireEvent?.id;
+                
+                if (firedNow || now - lastNetUpdate > 100) { 
+                    if (netData && (firedNow || netData.x !== lastNetData.x || netData.z !== lastNetData.z || netData.ry !== lastNetData.ry || netData.anim !== lastNetData.anim)) {
                         myPlayerRef.update(netData);
                         lastNetData = {...netData};
                         lastNetUpdate = now;
@@ -411,7 +398,6 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-// --- УПРАВЛЕНИЕ МОБИЛЬНЫХ ---
 if (isMobile) {
     const manager = nipplejs.create({ zone: document.getElementById('joystick-zone'), mode: 'static', position: { left: '50%', top: '50%' }, color: 'white', size: 100 });
     manager.on('move', (evt, data) => { inputs.joystick.active = true; inputs.joystick.angle = data.angle.radian; });
@@ -422,27 +408,42 @@ if (isMobile) {
         player.jump(); 
     });
 
-    // Стик Способности (Прицеливание)
-    let mobileAimStart = {x: 0, y: 0};
     const btnAbility = document.getElementById('btn-ability');
+    const abilityThumb = document.getElementById('ability-thumb');
+    let mobileAimStart = {x: 0, y: 0};
     
     btnAbility.addEventListener('touchstart', e => {
         e.preventDefault(); e.stopPropagation();
+        if (Date.now() < player.abilityCooldown) return;
         player.startAiming();
         const rect = btnAbility.getBoundingClientRect();
         mobileAimStart = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
         player.updateAiming(player.getPosition());
+        
+        abilityThumb.style.transition = 'none';
+        abilityThumb.style.transform = `translate(0px, 0px)`;
     });
     
     btnAbility.addEventListener('touchmove', e => {
         if (!player.isAiming) return;
         e.preventDefault(); e.stopPropagation();
         const touch = e.changedTouches[0];
-        const dx = touch.clientX - mobileAimStart.x;
-        const dy = touch.clientY - mobileAimStart.y;
         
-        const distScreen = Math.min(Math.sqrt(dx * dx + dy * dy), 60);
-        const distWorld = (distScreen / 60) * 15; // Максимальная дальность броска
+        let dx = touch.clientX - mobileAimStart.x;
+        let dy = touch.clientY - mobileAimStart.y;
+        
+        const maxDistScreen = 30; // Максимальное отклонение ползунка (пиксели)
+        const distScreen = Math.sqrt(dx*dx + dy*dy);
+        
+        if (distScreen > maxDistScreen) {
+            dx = (dx / distScreen) * maxDistScreen;
+            dy = (dy / distScreen) * maxDistScreen;
+        }
+        
+        // Визуальное перемещение ползунка
+        abilityThumb.style.transform = `translate(${dx}px, ${dy}px)`;
+        
+        const distWorld = (distScreen / maxDistScreen) * 15; 
         const angleScreen = Math.atan2(dy, dx);
         const angleWorld = angleScreen + cameraAngleY + Math.PI / 2;
         
@@ -456,6 +457,12 @@ if (isMobile) {
 
     btnAbility.addEventListener('touchend', e => {
         e.preventDefault(); e.stopPropagation();
+        if (!player.isAiming) return;
+        
+        // Возвращаем ползунок в центр плавно
+        abilityThumb.style.transition = 'transform 0.2s ease-out';
+        abilityThumb.style.transform = `translate(0px, 0px)`;
+        
         player.stopAimingAndFire();
     });
 
