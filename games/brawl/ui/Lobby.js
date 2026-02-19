@@ -71,14 +71,12 @@ export class Lobby {
         const grid = document.getElementById('avatars-grid');
         grid.innerHTML = '';
 
-        // 1. Тостер (Доступен)
         const toasterCard = document.createElement('div');
         toasterCard.className = 'avatar-card';
         toasterCard.innerHTML = `<img src="${CHARACTERS.toaster.avatar}">`;
         toasterCard.onclick = () => this.openDetail(CHARACTERS.toaster);
         grid.appendChild(toasterCard);
 
-        // 2. Заглушки (Coming Soon)
         for (let i = 0; i < 9; i++) {
             const locked = document.createElement('div');
             locked.className = 'avatar-card locked';
@@ -90,7 +88,6 @@ export class Lobby {
     openDetail(char) {
         this.selectedCharId = char.id;
         
-        // Заполняем UI
         document.getElementById('ui-hero-name').innerText = char.name;
         document.getElementById('ui-hero-role').innerText = char.role;
         document.getElementById('ui-hero-lore').innerText = char.description;
@@ -101,11 +98,9 @@ export class Lobby {
         document.getElementById('ui-ult-name').innerText = char.abilities.ultimate.name;
         document.getElementById('ui-ult-desc').innerText = char.abilities.ultimate.desc;
 
-        // Переключаем экраны
         document.getElementById('grid-overlay').classList.remove('active');
         document.getElementById('detail-overlay').classList.add('active');
 
-        // Сообщаем игре показать модельку для превью
         this.game.previewCharacter(char.id);
     }
 
@@ -118,34 +113,39 @@ export class Lobby {
         const readyBtn = document.getElementById('ready-btn');
         const rotateZone = document.getElementById('rotate-zone');
 
-        // 1. Дым -> Сетка
         openGridBtn.onclick = () => {
+            // === ЗАПРОС НА ФУЛЛСКРИН ДЛЯ МОБИЛЬНЫХ ===
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            if (isMobile) {
+                if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch((err) => {
+                        console.log("Fullscreen error:", err);
+                    });
+                }
+            }
+
             openGridBtn.classList.add('hidden');
             gridOverlay.classList.add('active');
         };
 
-        // 2. Детали -> Назад в Сетку
         backBtn.onclick = () => {
             detailOverlay.classList.remove('active');
             gridOverlay.classList.add('active');
-            this.game.hidePreview(); // Скрываем модель
+            this.game.hidePreview(); 
         };
 
-        // 3. Детали -> ВЫБРАТЬ
         confirmBtn.onclick = () => {
             detailOverlay.classList.remove('active');
-            this.game.selectCharacter(this.selectedCharId); // Фиксируем выбор
+            this.game.selectCharacter(this.selectedCharId); 
             readyBtn.classList.add('visible');
         };
 
-        // 4. Готов
         readyBtn.onclick = () => {
             readyBtn.innerText = "ОЖИДАНИЕ...";
             readyBtn.classList.add('pushed');
             this.game.setPlayerReady();
         };
 
-        // 5. Вращение модели в детальном меню
         let isDragging = false;
         let lastX = 0;
 

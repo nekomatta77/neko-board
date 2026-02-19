@@ -4,7 +4,18 @@ import { Lobby } from './ui/Lobby.js';
 
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-// --- СОЗДАНИЕ МИНИМАЛИСТИЧНОГО UI ДЛЯ ЛОКАЛЬНОГО ИГРОКА И КНОПОК ---
+// Очищаем стили системной кнопки выхода, чтобы остался только один прозрачный крестик
+const exitBtn = document.getElementById('exit-btn');
+if (exitBtn) {
+    exitBtn.style.background = 'transparent';
+    exitBtn.style.border = 'none';
+    exitBtn.style.boxShadow = 'none';
+    exitBtn.style.color = 'white';
+    exitBtn.style.fontSize = '28px';
+    exitBtn.style.textShadow = '0 2px 4px rgba(0,0,0,0.8)';
+    exitBtn.style.zIndex = '10000';
+}
+
 const localUiHTML = `
     <div id="orientation-warning" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#111; color:white; z-index:99999; flex-direction:column; justify-content:center; align-items:center; text-align:center; font-family:sans-serif;">
         <div style="font-size: 60px; transform: rotate(-90deg); margin-bottom: 20px;">📱</div>
@@ -28,27 +39,23 @@ const localUiHTML = `
     </div>
 
     <div id="mobile-hud" style="display:none; position:absolute; inset:0; pointer-events:none; z-index:200;">
-        <button id="btn-settings" style="position:absolute; top:20px; right:20px; width:45px; height:45px; border-radius:50%; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.2); color:white; font-size:20px; pointer-events:auto; backdrop-filter:blur(5px);">⚙️</button>
+        <button id="btn-settings" style="position:absolute; top:70px; right:20px; width:45px; height:45px; border-radius:50%; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.2); color:white; font-size:20px; pointer-events:auto; backdrop-filter:blur(5px);">⚙️</button>
         
-        <div id="settings-panel" style="display:none; position:absolute; top:75px; right:20px; background:rgba(15,20,30,0.9); padding:15px; border-radius:15px; border:1px solid rgba(255,255,255,0.1); color:white; pointer-events:auto; font-family:sans-serif; backdrop-filter:blur(10px);">
+        <div id="settings-panel" style="display:none; position:absolute; top:125px; right:20px; background:rgba(15,20,30,0.9); padding:15px; border-radius:15px; border:1px solid rgba(255,255,255,0.1); color:white; pointer-events:auto; font-family:sans-serif; backdrop-filter:blur(10px);">
             <div style="font-size:14px; margin-bottom:10px;">Прозрачность кнопок:</div>
             <input type="range" id="opacity-slider" min="0.1" max="1" step="0.1" value="0.7">
         </div>
 
         <div id="action-buttons" style="position:absolute; bottom:30px; right:30px; width:180px; height:180px; opacity:0.7; pointer-events:auto; transition: opacity 0.2s;">
             <button id="btn-attack" style="position:absolute; bottom:0; right:0; width:85px; height:85px; border-radius:50%; background:rgba(255,50,50,0.5); border:3px solid rgba(255,100,100,0.8); color:white; font-size:35px; box-shadow:0 0 15px rgba(255,50,50,0.5);">⚔️</button>
-            
             <button id="btn-jump" style="position:absolute; bottom:110px; right:20px; width:60px; height:60px; border-radius:50%; background:rgba(50,200,50,0.5); border:2px solid rgba(100,255,100,0.8); color:white; font-size:20px;">🔼</button>
-            
             <button id="btn-ability" style="position:absolute; bottom:20px; right:110px; width:60px; height:60px; border-radius:50%; background:rgba(50,150,255,0.5); border:2px solid rgba(100,200,255,0.8); color:white; font-size:20px;">✨</button>
-            
             <button id="btn-ult" style="position:absolute; bottom:90px; right:90px; width:65px; height:65px; border-radius:50%; background:rgba(255,200,0,0.5); border:2px solid rgba(255,255,100,0.8); color:white; font-size:24px;">🔥</button>
         </div>
     </div>
 `;
 document.body.insertAdjacentHTML('beforeend', localUiHTML);
 
-// Сжатие интерфейса и проверка переворота для мобилок
 if (isMobile) {
     document.getElementById('local-ui').style.transform = 'scale(0.8)';
     document.getElementById('local-ui').style.transformOrigin = 'top left';
@@ -62,7 +69,7 @@ if (isMobile) {
         }
     }
     window.addEventListener('resize', checkOrientation);
-    checkOrientation(); // Проверка при старте
+    checkOrientation(); 
 }
 
 function updateLocalUI(current, max) {
@@ -83,7 +90,6 @@ function updateLocalUI(current, max) {
     }
 }
 
-// --- FIREBASE CONFIG ---
 const firebaseConfig = {
     apiKey: "AIzaSyC5E-bN2LNWElo7I4kcCGqcgMvoy8WX4wY",
     authDomain: "neko-board.firebaseapp.com",
@@ -215,7 +221,10 @@ playersRef.on('child_changed', (snap) => {
         if (data.hp !== undefined && data.hp !== player.hp) {
             player.setHp(data.hp);
             updateLocalUI(player.hp, player.maxHp);
+            
+            // Если игрок только что умер - сообщаем в Firebase, чтобы обновились другие клиенты
             if (player.isDead) {
+                myPlayerRef.update({ isDead: true });
                 document.getElementById('local-hp-text').innerText = "ПОГИБ";
                 document.getElementById('local-hp-text').style.color = "#ff3333";
             }
@@ -282,8 +291,6 @@ function startGame() {
     
     if (isMobile) {
         document.getElementById('mobile-hud').style.display = 'block';
-        // Попытка принудительно войти в полный экран
-        try { document.documentElement.requestFullscreen(); } catch (e) {}
     }
     
     if(player.mesh) {
@@ -292,7 +299,6 @@ function startGame() {
     }
 }
 
-// --- УМНАЯ СИСТЕМА УРОНА ---
 function checkHit() {
     const attackRange = 2.0; 
     const attackAngle = Math.PI / 2.5; 
@@ -336,10 +342,9 @@ document.addEventListener('keyup', (e) => {
     if(e.code === 'KeyD') inputs.right = false;
 });
 
-// Клик по ПК
 document.addEventListener('click', (e) => {
     if (gameState.mode === 'GAME' && player.mesh && !player.isDead) {
-        if (e.target.closest('#local-ui') || e.target.closest('#mobile-hud') || e.target.closest('#joystick-zone') || e.target.closest('#touch-rotate-zone')) return;
+        if (e.target.closest('#local-ui') || e.target.closest('#mobile-hud') || e.target.closest('#joystick-zone') || e.target.closest('#touch-rotate-zone') || e.target.closest('#exit-btn')) return;
         if (player.attack()) setTimeout(checkHit, 300); 
     }
 });
@@ -396,19 +401,15 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-// --- УПРАВЛЕНИЕ ДЛЯ МОБИЛОК ---
 if (isMobile) {
     const manager = nipplejs.create({ zone: document.getElementById('joystick-zone'), mode: 'static', position: { left: '50%', top: '50%' }, color: 'white', size: 100 });
     manager.on('move', (evt, data) => { inputs.joystick.active = true; inputs.joystick.angle = data.angle.radian; });
     manager.on('end', () => inputs.joystick.active = false);
     
-    // Привязка новых мобильных кнопок
     const addBtnEvent = (id, action) => {
         const btn = document.getElementById(id);
         if (btn) btn.addEventListener('touchstart', (e) => { 
             e.preventDefault(); e.stopPropagation(); 
-            // Гарантированно запрашиваем полный экран при первом касании боевых кнопок
-            if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
             action(); 
         });
     };
@@ -418,7 +419,6 @@ if (isMobile) {
     addBtnEvent('btn-ability', () => player.useAbility());
     addBtnEvent('btn-ult', () => player.useUltimate());
 
-    // Настройки прозрачности
     document.getElementById('btn-settings').addEventListener('touchstart', (e) => {
         e.preventDefault(); e.stopPropagation();
         const panel = document.getElementById('settings-panel');
@@ -429,14 +429,12 @@ if (isMobile) {
         const val = e.target.value;
         document.getElementById('action-buttons').style.opacity = val;
         const joystick = document.getElementById('joystick-zone');
-        if (joystick) joystick.style.opacity = val; // Джойстик тоже станет прозрачнее!
+        if (joystick) joystick.style.opacity = val; 
     });
     
-    // Вращение камеры пальцем
     const touchZone = document.getElementById('touch-rotate-zone'); let lastX;
     touchZone.addEventListener('touchstart', e => { 
         lastX = e.touches[0].clientX; 
-        if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
     });
     touchZone.addEventListener('touchmove', e => { 
         if(isPreviewing) return; 
