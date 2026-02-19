@@ -11,7 +11,6 @@ export class Toaster {
         this.runAnimSpeed = 1;
         this.modelScale = 0.018; 
         
-        // --- ЗДОРОВЬЕ И СТАТУС ---
         this.maxHp = 3200;
         this.hp = 3200;
         this.isDead = false;
@@ -82,10 +81,9 @@ export class Toaster {
                 action.loop = THREE.LoopOnce;
                 action.clampWhenFinished = true;
             });
-            // --- ЗАГРУЗКА АНИМАЦИИ СМЕРТИ ---
             this.loadAnim('Die', 'die.fbx', (action) => {
                 action.loop = THREE.LoopOnce;
-                action.clampWhenFinished = true; // Останавливаемся на последнем кадре (лежит)
+                action.clampWhenFinished = true;
             });
 
         }, undefined, (e) => console.error(e));
@@ -114,7 +112,6 @@ export class Toaster {
     playAnim(name) {
         if (!this.animations[name]) return;
         if (this.activeActionName === name && name !== 'Punch') return;
-        // Если мертв, разрешаем играть ТОЛЬКО анимацию смерти
         if (this.isDead && name !== 'Die') return;
 
         const newAction = this.animations[name];
@@ -128,10 +125,34 @@ export class Toaster {
     }
 
     attack() {
-        if (this.isAttacking || this.isDead) return; // Мертвые не бьют
+        if (this.isAttacking || this.isDead) return false; 
         this.isAttacking = true;
         this.playAnim('Punch');
+        
+        if (this.attackTimeout) clearTimeout(this.attackTimeout);
+        this.attackTimeout = setTimeout(() => {
+            this.isAttacking = false;
+        }, 800);
+
+        return true; 
     }
+
+    // --- НОВЫЕ ФУНКЦИИ (ПОКА КАК ЗАГЛУШКИ ДЛЯ КНОПОК) ---
+    jump() {
+        if (this.isDead) return;
+        console.log("Прыжок выполнен!");
+    }
+
+    useAbility() {
+        if (this.isDead) return;
+        console.log("Способность использована!");
+    }
+
+    useUltimate() {
+        if (this.isDead) return;
+        console.log("Ульта активирована!");
+    }
+    // ----------------------------------------------------
 
     update(dt, inputs, cameraAngleY) {
         if (this.hologramGroup && this.isHologram) {
@@ -144,7 +165,6 @@ export class Toaster {
         if (!this.mesh || !this.mixer) return;
         this.mixer.update(dt);
 
-        // Если умер или атакует — отключаем движение
         if (this.isDead || this.isAttacking) return;
 
         let dx = 0;
@@ -182,7 +202,6 @@ export class Toaster {
         }
     }
     
-    // Вызывается из game.js при получении данных о нашем уроне
     setHp(newHp) {
         this.hp = newHp;
         if (this.hp <= 0 && !this.isDead) {
