@@ -24,9 +24,8 @@ var roomsRef = db.ref('rooms');
 
 var currentUser = null;
 var selectedAvatar = 'ava1.png';
-// selectedGameType теперь определяется динамически из UI
 
-console.log("NEKO Board: Main JS v3.0 Loaded"); 
+console.log("NEKO Board: Main JS v3.1 Loaded (Godot Support Added)"); 
 
 // --- AUDIO ---
 var audio = {
@@ -95,7 +94,6 @@ function switchTab(tab) {
 
 function openCreateModal(gameType) {
     audio.click();
-    // Автоматически выбираем нужную игру в списке
     const selector = document.getElementById('game-type-select');
     if (selector && gameType) {
         selector.value = gameType;
@@ -113,17 +111,14 @@ function createRoom() {
     const name = document.getElementById('room-name-input').value.trim() || "Комната";
     const max = parseInt(document.getElementById('players-range').value);
     
-    // Получаем выбранную игру
     const typeSelect = document.getElementById('game-type-select');
     const gameType = typeSelect ? typeSelect.value : 'tictactoe';
     
     const ref = roomsRef.push();
-    // Отмена удаления при разрыве (для перехода на страницу игры)
     ref.onDisconnect().cancel(); 
 
     let initialGame = {};
 
-    // Инициализация данных в зависимости от игры
     if (gameType === 'tictactoe') {
         const boardSize = max > 2 ? 15 : 3;
         initialGame = {
@@ -135,6 +130,13 @@ function createRoom() {
     } else if (gameType === 'brawl') {
         initialGame = {
             state: 'waiting',
+            players: {}
+        };
+    } else if (gameType === 'godot_run') {
+        // Подготовка стейта для движка Godot
+        initialGame = {
+            state: 'lobby',
+            map_seed: Math.floor(Math.random() * 100000),
             players: {}
         };
     }
@@ -173,7 +175,6 @@ function loadServers() {
 
             const card = document.createElement('div');
             card.className = 'server-card';
-            // Передаем все параметры в joinGame
             card.onclick = () => { audio.click(); joinGame(room.id, room.gameType, room.maxPlayers, room.host); };
             card.classList.add('hover-sound');
             
@@ -181,7 +182,7 @@ function loadServers() {
                 card.addEventListener('mouseenter', () => audio.hover());
             }
 
-            const gameName = room.gameType ? room.gameType.toUpperCase() : "GAME";
+            const gameName = room.gameType ? room.gameType.toUpperCase().replace('_', ' ') : "GAME";
             
             card.innerHTML = `
                 <div class="server-info">
@@ -199,10 +200,11 @@ function loadServers() {
 }
 
 function joinGame(roomId, gameType, maxPlayers, hostName) {
-    let fileName = 'index.html'; // Дефолт
+    let fileName = 'index.html'; 
     
     if (gameType === 'tictactoe') fileName = 'tictac.html';
-    else if (gameType === 'brawl') fileName = 'brawl.html'; // Мы переименовали этот файл
+    else if (gameType === 'brawl') fileName = 'brawl.html'; 
+    else if (gameType === 'godot_run') fileName = 'godot_index.html'; // Экспортированный HTML файл из Godot
     
     const url = `games/${gameType}/${fileName}?room=${roomId}&max=${maxPlayers}&user=${encodeURIComponent(currentUser.name)}&avatar=${encodeURIComponent(currentUser.avatar)}`;
     

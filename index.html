@@ -33,8 +33,9 @@
             <div class="game-selector" style="margin-bottom: 15px; text-align: left;">
                 <label style="color: #a0a0a0; font-size: 14px; display: block; margin-bottom: 5px;">Режим игры</label>
                 <select id="game-type-select" style="width: 100%; padding: 10px; background: #2d2d35; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; outline: none;">
-                    <option value="tictactoe">Крестики-Нолики</option>
-                    <option value="brawl">Бравл 3D (Тест)</option>
+                    <option value="tictactoe">Tic-Tac-Toe</option>
+                    <option value="brawl">BrawlKitty</option>
+                    <option value="godot_run">KittyHunt</option>
                 </select>
             </div>
             
@@ -102,23 +103,22 @@
                 <div class="game-icon" style="background: linear-gradient(45deg, #a18cd1, #fbc2eb);">
                      <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><path d="M3 3l18 18M21 3L3 21"/></svg>
                 </div>
-                <h3>Tic-Tac-Toe Online</h3>
+                <h3>Tic-Tac-Toe</h3>
             </button>
             
             <button class="game-card hover-sound" onclick="openCreateModal('brawl')">
                 <div class="game-icon" style="background: linear-gradient(45deg, #ff9a9e, #fad0c4);">
                     <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4m-2-2v4M15 11h.01M18 13h.01"/></svg>
                 </div>
-                <h3>Brawl Shooter</h3>
+                <h3>BrawlKitty</h3>
             </button>
 
-            <button class="game-card hover-sound" onclick="showToast('Coming Soon!')">
-                <div class="game-icon" style="background: linear-gradient(45deg, #84fab0, #8fd3f4);">
-                     <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+            <button class="game-card hover-sound" onclick="openCreateModal('godot_run')">
+                <div class="game-icon" style="background: linear-gradient(45deg, #4facfe, #00f2fe);">
+                     <svg class="icon-xl" viewBox="0 0 24 24" stroke="white"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 </div>
-                <h3>Color Glass</h3>
+                <h3>KittyHunt</h3>
             </button>
-        </div>
 
         <div id="content-servers" class="server-list hidden">
             <div style="text-align: center; color: #666; padding: 20px;">Загрузка списка комнат...</div>
