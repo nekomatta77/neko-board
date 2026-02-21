@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>KittyHunt</title>
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	color: white;
+	background-color: black;
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	display: block;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+#status, #status-splash, #status-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#status, #status-splash {
+	top: 0;
+	bottom: 0;
+}
+
+#status {
+	background-color: #242424;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	visibility: hidden;
+}
+
+#status-splash {
+	max-height: 100%;
+	max-width: 100%;
+	margin: auto;
+}
+
+#status-splash.show-image--false {
+	display: none;
+}
+
+#status-splash.fullsize--true {
+	height: 100%;
+	width: 100%;
+	object-fit: contain;
+}
+
+#status-splash.use-filter--false {
+	image-rendering: pixelated;
+}
+
+#status-progress, #status-notice {
+	display: none;
+}
+
+#status-progress {
+	bottom: 10%;
+	width: 50%;
+	margin: 0 auto;
+}
+
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.3;
+	margin: 0 2rem;
+	overflow: hidden;
+	padding: 1rem;
+	text-align: center;
+	z-index: 1;
+}
+		</style>
+		<link id="-gd-engine-icon" rel="icon" type="image/png" href="godot_index.icon.png" />
+<link rel="apple-touch-icon" href="godot_index.apple-touch-icon.png"/>
+
+	</head>
+	
+	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+<script>
+    // 1. Инициализируем Firebase (взято из твоего main.js)
+    const firebaseConfig = {
+        apiKey: "AIzaSyC5E-bN2LNWElo7I4kcCGqcgMvoy8WX4wY",
+        authDomain: "neko-board.firebaseapp.com",
+        databaseURL: "https://neko-board-default-rtdb.firebaseio.com",
+        projectId: "neko-board",
+        storageBucket: "neko-board.firebasestorage.app",
+        messagingSenderId: "758590553576",
+        appId: "1:758590553576:web:b3d006e91390d1d4f3385d"
+    };
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.database();
+
+    // 2. Читаем параметры из URL (комната и никнейм)
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomId = urlParams.get('room');
+    const userName = urlParams.get('user');
+
+    let isHost = false;
+    let myId = 1; // Хост всегда имеет ID 1 в Godot
+
+    // 3. Узнаем, кто мы (Охотник-Хост или Проп-Клиент)
+    db.ref('rooms/' + roomId).once('value', (snap) => {
+        const roomData = snap.val();
+        if (roomData && roomData.host === userName) {
+            isHost = true;
+            myId = 1; 
+            db.ref('rooms/' + roomId + '/webrtc').remove(); // Очищаем старые данные комнаты
+            waitForGodot();
+        } else {
+            isHost = false;
+            myId = Math.floor(Math.random() * 900000) + 10; // Случайный ID для Пропа
+            waitForGodot();
+        }
+    });
+
+    // 4. Ждем, пока движок Godot загрузится и покажет наш скрипт Network.gd
+    function waitForGodot() {
+        console.log("Ждем Godot...");
+        const checkInterval = setInterval(() => {
+            if (window.godotNetwork) {
+                clearInterval(checkInterval);
+                console.log("Godot найден! Запускаем WebRTC...");
+                initWebRTC();
+            }
+        }, 500);
+    }
+
+    // 5. ОСНОВНАЯ ЛОГИКА ПОДКЛЮЧЕНИЯ
+    function initWebRTC() {
+        if (isHost) {
+            window.godotNetwork.start_host();
+            // Хост слушает: не зашел ли новый игрок?
+            db.ref('rooms/' + roomId + '/webrtc/players').on('child_added', (snap) => {
+                const clientId = parseInt(snap.key);
+                if (clientId !== 1) {
+                    console.log("JS: Начинаем подключение к клиенту " + clientId);
+                    window.godotNetwork.create_peer(clientId);
+                }
+            });
+        } else {
+            window.godotNetwork.start_client(myId);
+            // Клиент сообщает хосту, что он зашел
+            db.ref('rooms/' + roomId + '/webrtc/players/' + myId).set(true);
+        }
+
+        // --- ОБМЕН ДАННЫМИ ЧЕРЕЗ FIREBASE ---
+        
+        // Слушаем зашифрованные предложения (SDP Offer/Answer)
+        db.ref('rooms/' + roomId + '/webrtc/sdp/' + myId).on('child_added', (snap) => {
+            const data = snap.val();
+            console.log("JS: Получен SDP от " + data.from);
+            window.godotNetwork.set_remote_sdp(data.from, data.type, data.sdp);
+            
+            // Если клиент получил предложение (Offer) от хоста, он должен создать пир в ответ
+            if (!isHost && data.type === 'offer') {
+                window.godotNetwork.create_peer(1); // 1 - это ID хоста
+            }
+        });
+
+        // Слушаем IP-адреса для прямого соединения (ICE Candidates)
+        db.ref('rooms/' + roomId + '/webrtc/ice/' + myId).on('child_added', (snap) => {
+            const data = snap.val();
+            window.godotNetwork.add_remote_ice(data.from, data.media, data.index, data.name);
+        });
+    }
+
+    // --- ЭТИ ФУНКЦИИ ВЫЗЫВАЕТ САМ GODOT ИЗ СКРИПТА Network.gd ---
+    window.sendSDPToFirebase = function(targetId, type, sdp) {
+        db.ref('rooms/' + roomId + '/webrtc/sdp/' + targetId).push({
+            from: myId,
+            type: type,
+            sdp: sdp
+        });
+    };
+
+    window.sendICEToFirebase = function(targetId, media, index, name) {
+        db.ref('rooms/' + roomId + '/webrtc/ice/' + targetId).push({
+            from: myId,
+            media: media,
+            index: index,
+            name: name
+        });
+    };
+</script>
+
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="godot_index.png" alt="">
+			<progress id="status-progress"></progress>
+			<div id="status-notice"></div>
+		</div>
+
+		<script src="godot_index.js"></script>
+		<script>
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"godot_index","experimentalVK":false,"fileSizes":{"godot_index.pck":23788,"godot_index.wasm":37685705},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_THREADS_ENABLED = false;
+const engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusNotice = document.getElementById('status-notice');
+
+	let initializing = true;
+	let statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			statusOverlay.remove();
+			initializing = false;
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('An unknown error occurred.');
+		}
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	const missing = Engine.getMissingFeatures({
+		threads: GODOT_THREADS_ENABLED,
+	});
+
+	if (missing.length !== 0) {
+		if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+			let serviceWorkerRegistrationPromise;
+			try {
+				serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+			} catch (err) {
+				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			// There's a chance that installing the service worker would fix the issue
+			Promise.race([
+				serviceWorkerRegistrationPromise.then((registration) => {
+					if (registration != null) {
+						return Promise.reject(new Error('Service worker already exists.'));
+					}
+					return registration;
+				}).then(() => engine.installServiceWorker()),
+				// For some reason, `getRegistration()` can stall
+				new Promise((resolve) => {
+					setTimeout(() => resolve(), 2000);
+				}),
+			]).then(() => {
+				// Reload if there was no error.
+				window.location.reload();
+			}).catch((err) => {
+				console.error('Error while registering service worker:', err);
+			});
+		} else {
+			// Display the message as usual
+			const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+			displayFailureNotice(missingMsg + missing.join('\n'));
+		}
+	} else {
+		setStatusMode('progress');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					statusProgress.value = current;
+					statusProgress.max = total;
+				} else {
+					statusProgress.removeAttribute('value');
+					statusProgress.removeAttribute('max');
+				}
+			},
+		}).then(() => {
+			setStatusMode('hidden');
+		}, displayFailureNotice);
+	}
+}());
+		</script>
+	</body>
+</html>
+
