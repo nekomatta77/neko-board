@@ -94,119 +94,6 @@ body {
 <link rel="apple-touch-icon" href="godot_index.apple-touch-icon.png"/>
 
 	</head>
-	
-	<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-<script>
-    // 1. Инициализируем Firebase (взято из твоего main.js)
-    const firebaseConfig = {
-        apiKey: "AIzaSyC5E-bN2LNWElo7I4kcCGqcgMvoy8WX4wY",
-        authDomain: "neko-board.firebaseapp.com",
-        databaseURL: "https://neko-board-default-rtdb.firebaseio.com",
-        projectId: "neko-board",
-        storageBucket: "neko-board.firebasestorage.app",
-        messagingSenderId: "758590553576",
-        appId: "1:758590553576:web:b3d006e91390d1d4f3385d"
-    };
-    if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-    }
-    const db = firebase.database();
-
-    // 2. Читаем параметры из URL (комната и никнейм)
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomId = urlParams.get('room');
-    const userName = urlParams.get('user');
-
-    let isHost = false;
-    let myId = 1; // Хост всегда имеет ID 1 в Godot
-
-    // 3. Узнаем, кто мы (Охотник-Хост или Проп-Клиент)
-    db.ref('rooms/' + roomId).once('value', (snap) => {
-        const roomData = snap.val();
-        if (roomData && roomData.host === userName) {
-            isHost = true;
-            myId = 1; 
-            db.ref('rooms/' + roomId + '/webrtc').remove(); // Очищаем старые данные комнаты
-            waitForGodot();
-        } else {
-            isHost = false;
-            myId = Math.floor(Math.random() * 900000) + 10; // Случайный ID для Пропа
-            waitForGodot();
-        }
-    });
-
-    // 4. Ждем, пока движок Godot загрузится и покажет наш скрипт Network.gd
-    function waitForGodot() {
-        console.log("Ждем Godot...");
-        const checkInterval = setInterval(() => {
-            if (window.godotNetwork) {
-                clearInterval(checkInterval);
-                console.log("Godot найден! Запускаем WebRTC...");
-                initWebRTC();
-            }
-        }, 500);
-    }
-
-    // 5. ОСНОВНАЯ ЛОГИКА ПОДКЛЮЧЕНИЯ
-    function initWebRTC() {
-        if (isHost) {
-            window.godotNetwork.start_host();
-            // Хост слушает: не зашел ли новый игрок?
-            db.ref('rooms/' + roomId + '/webrtc/players').on('child_added', (snap) => {
-                const clientId = parseInt(snap.key);
-                if (clientId !== 1) {
-                    console.log("JS: Начинаем подключение к клиенту " + clientId);
-                    window.godotNetwork.create_peer(clientId);
-                }
-            });
-        } else {
-            window.godotNetwork.start_client(myId);
-            // Клиент сообщает хосту, что он зашел
-            db.ref('rooms/' + roomId + '/webrtc/players/' + myId).set(true);
-        }
-
-        // --- ОБМЕН ДАННЫМИ ЧЕРЕЗ FIREBASE ---
-        
-        // Слушаем зашифрованные предложения (SDP Offer/Answer)
-        db.ref('rooms/' + roomId + '/webrtc/sdp/' + myId).on('child_added', (snap) => {
-            const data = snap.val();
-            console.log("JS: Получен SDP от " + data.from);
-            window.godotNetwork.set_remote_sdp(data.from, data.type, data.sdp);
-            
-            // Если клиент получил предложение (Offer) от хоста, он должен создать пир в ответ
-            if (!isHost && data.type === 'offer') {
-                window.godotNetwork.create_peer(1); // 1 - это ID хоста
-            }
-        });
-
-        // Слушаем IP-адреса для прямого соединения (ICE Candidates)
-        db.ref('rooms/' + roomId + '/webrtc/ice/' + myId).on('child_added', (snap) => {
-            const data = snap.val();
-            window.godotNetwork.add_remote_ice(data.from, data.media, data.index, data.name);
-        });
-    }
-
-    // --- ЭТИ ФУНКЦИИ ВЫЗЫВАЕТ САМ GODOT ИЗ СКРИПТА Network.gd ---
-    window.sendSDPToFirebase = function(targetId, type, sdp) {
-        db.ref('rooms/' + roomId + '/webrtc/sdp/' + targetId).push({
-            from: myId,
-            type: type,
-            sdp: sdp
-        });
-    };
-
-    window.sendICEToFirebase = function(targetId, media, index, name) {
-        db.ref('rooms/' + roomId + '/webrtc/ice/' + targetId).push({
-            from: myId,
-            media: media,
-            index: index,
-            name: name
-        });
-    };
-</script>
-
 	<body>
 		<canvas id="canvas">
 			Your browser does not support the canvas tag.
@@ -224,7 +111,7 @@ body {
 
 		<script src="godot_index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"godot_index","experimentalVK":false,"fileSizes":{"godot_index.pck":23788,"godot_index.wasm":37685705},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"godot_index","experimentalVK":false,"fileSizes":{"godot_index.pck":28748,"godot_index.wasm":37685705},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
