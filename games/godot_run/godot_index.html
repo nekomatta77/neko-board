@@ -92,7 +92,101 @@ body {
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="godot_index.icon.png" />
 <link rel="apple-touch-icon" href="godot_index.apple-touch-icon.png"/>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script>
+// Ждем, пока Godot поднимет флаг готовности
+var fbInterval = setInterval(() => {
+    if (window.godotNetworkReady) {
+        clearInterval(fbInterval);
+        initFirebaseWebRTC();
+    }
+}, 500);
 
+function initFirebaseWebRTC() {
+    var firebaseConfig = {
+        apiKey: "AIzaSyC5E-bN2LNWElo7I4kcCGqcgMvoy8WX4wY",
+        authDomain: "neko-board.firebaseapp.com",
+        databaseURL: "https://neko-board-default-rtdb.firebaseio.com",
+        projectId: "neko-board"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    var db = firebase.database();
+
+    var urlParams = new URLSearchParams(window.location.search);
+    var roomId = urlParams.get('room');
+    var userName = urlParams.get('user');
+
+    if (!roomId) return; // Играем оффлайн
+
+    var roomRef = db.ref('rooms/' + roomId);
+    var myId = 1;
+
+    roomRef.once('value', snapshot => {
+        const room = snapshot.val();
+        if (!room) return;
+
+        if (room.host === userName) {
+            // ==========================================
+            // Я ХОСТ (Охотник)
+            // ==========================================
+            myId = 1; 
+            window.godot_start_host(); 
+            
+            // 🔥 МАГИЯ 1: Авто-удаление комнаты при потере связи сервером Firebase (закрыл/свернул)
+            roomRef.onDisconnect().remove();
+
+            // 🔥 МАГИЯ 2: Моментальное удаление, если игрок уходит со страницы
+            window.addEventListener('beforeunload', () => {
+                roomRef.remove();
+            });
+            window.addEventListener('pagehide', () => {
+                roomRef.remove();
+            });
+            
+            roomRef.child('players').on('child_added', snap => {
+                var peerId = snap.key;
+                if (peerId != 1) window.godot_create_peer(parseInt(peerId));
+            });
+            
+        } else {
+            // ==========================================
+            // Я КЛИЕНТ (Проп)
+            // ==========================================
+            myId = Math.floor(Math.random() * 90000) + 10000;
+            window.godot_start_client(myId); 
+            
+            var myPlayerRef = roomRef.child('players').child(myId);
+            
+            // 🔥 Чтобы в базе не оставалось "призраков", удаляем клиента из комнаты при его выходе
+            myPlayerRef.onDisconnect().remove();
+            window.addEventListener('beforeunload', () => {
+                myPlayerRef.remove();
+            });
+            window.addEventListener('pagehide', () => {
+                myPlayerRef.remove();
+            });
+            
+            myPlayerRef.set({ name: userName });
+        }
+
+        roomRef.child('signals').on('child_added', snap => {
+            var sig = snap.val();
+            if (sig.to === myId) {
+                if (sig.type === 'sdp') window.godot_set_remote_sdp(parseInt(sig.from), sig.sdpType, sig.sdp);
+                else if (sig.type === 'ice') window.godot_add_remote_ice(parseInt(sig.from), sig.media, sig.index, sig.name);
+            }
+        });
+    });
+
+    window.sendSDPToFirebase = function(targetId, type, sdp) {
+        roomRef.child('signals').push({ from: myId, to: targetId, type: 'sdp', sdpType: type, sdp: sdp });
+    };
+    window.sendICEToFirebase = function(targetId, media, index, name) {
+        roomRef.child('signals').push({ from: myId, to: targetId, type: 'ice', media: media, index: index, name: name });
+    };
+}
+</script>
 	</head>
 	<body>
 		<canvas id="canvas">
@@ -111,7 +205,7 @@ body {
 
 		<script src="godot_index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"godot_index","experimentalVK":false,"fileSizes":{"godot_index.pck":30716,"godot_index.wasm":37685705},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"godot_index","experimentalVK":false,"fileSizes":{"godot_index.pck":37260,"godot_index.wasm":37685705},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
